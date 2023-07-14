@@ -28,3 +28,7 @@ function TodosApp() {
 
 返回值: 
 该 store 的当前快照，可以在你的渲染逻辑中使用。
+
+警告:
+1. `getSnapshot` 返回的 store 快照必须是不可变的。如果底层 store 有可变数据，要在数据改变时返回一个新的不可变快照。否则，返回上次缓存的快照。
+2. 如果在重新渲染时传入一个不同的 subscribe 函数，React 会用新传入的 subscribe 函数重新订阅该 store。你可以通过在组件外声明 subscribe 来避免。
