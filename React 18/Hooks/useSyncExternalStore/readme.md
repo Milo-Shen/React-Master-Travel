@@ -273,3 +273,5 @@ function ChatIndicator({ userId }) {
   // ...
 }
 ```
+
+### 遇到一个错误：“The result of `getSnapshot` should be cached” 
