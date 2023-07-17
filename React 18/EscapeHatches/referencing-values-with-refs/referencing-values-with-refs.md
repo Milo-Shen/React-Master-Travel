@@ -56,3 +56,92 @@ export default function Counter() {
 这里的 `ref` 指向一个数字，但是，像 `state` 一样，你可以让它指向任何东西：字符串、对象，甚至是函数。与 `state` 不同的是，`ref` 是一个普通的 JavaScript 对象，具有可以被读取和修改的 `current` 属性。
 
 请注意，组件不会在每次递增时重新渲染。 与 `state` 一样，React 会在每次重新渲染之间保留 `ref`。但是，设置 `state` 会重新渲染组件，更改 `ref` 不会！
+
+### 示例：制作秒表 
+你可以在单个组件中把 `ref` 和 `state` 结合起来使用。例如，让我们制作一个秒表，用户可以通过按按钮来使其启动或停止。为了显示从用户按下“开始”以来经过的时间长度，你需要追踪按下“开始”按钮的时间和当前时间。此信息用于渲染，所以你会把它保存在 `state` 中：
+
+```jsx
+const [startTime, setStartTime] = useState(null);
+const [now, setNow] = useState(null);
+```
+
+当用户按下“开始”时，你将用 `setInterval` 每 10 毫秒更新一次时间：
+
+```jsx
+import { useState } from 'react';
+
+export default function Stopwatch() {
+  const [startTime, setStartTime] = useState(null);
+  const [now, setNow] = useState(null);
+
+  function handleStart() {
+    // 开始计时。
+    setStartTime(Date.now());
+    setNow(Date.now());
+
+    setInterval(() => {
+      // 每 10ms 更新一次当前时间。
+      setNow(Date.now());
+    }, 10);
+  }
+
+  let secondsPassed = 0;
+  if (startTime != null && now != null) {
+    secondsPassed = (now - startTime) / 1000;
+  }
+
+  return (
+    <>
+      <h1>时间过去了： {secondsPassed.toFixed(3)}</h1>
+      <button onClick={handleStart}>
+        开始
+      </button>
+    </>
+  );
+}
+```
+
+当按下“停止”按钮时，你需要取消现有的 `interval`，以便让它停止更新 `now` `state` 变量。你可以通过调用 `clearInterval` 来完成此操作。但你需要为其提供 interval ID，此 ID 是之前用户按下 Start、调用 `setInterval` 时返回的。你需要将 interval ID 保留在某处。 *由于 interval ID 不用于渲染，你可以将其保存在 `ref` 中*：
+
+```jsx
+import { useState, useRef } from 'react';
+
+export default function Stopwatch() {
+  const [startTime, setStartTime] = useState(null);
+  const [now, setNow] = useState(null);
+  const intervalRef = useRef(null);
+
+  function handleStart() {
+    setStartTime(Date.now());
+    setNow(Date.now());
+
+    clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      setNow(Date.now());
+    }, 10);
+  }
+
+  function handleStop() {
+    clearInterval(intervalRef.current);
+  }
+
+  let secondsPassed = 0;
+  if (startTime != null && now != null) {
+    secondsPassed = (now - startTime) / 1000;
+  }
+
+  return (
+    <>
+      <h1>时间过去了： {secondsPassed.toFixed(3)}</h1>
+      <button onClick={handleStart}>
+        开始
+      </button>
+      <button onClick={handleStop}>
+        停止
+      </button>
+    </>
+  );
+}
+```
+
+当一条信息用于渲染时，将它保存在 `state` 中。当一条信息仅被事件处理器需要，并且更改它不需要重新渲染时，使用 `ref` 可能会更高效。
