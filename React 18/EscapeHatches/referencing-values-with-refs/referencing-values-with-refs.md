@@ -180,3 +180,29 @@ export default function Counter() {
   );
 }
 ```
+
+因为 `count` 的值将会被显示，所以为其使用 `state` 是合理的。当使用 `setCount()` 设置计数器的值时，React 会重新渲染组件，并且屏幕会更新以展示新的计数。
+
+如果你试图用 `ref` 来实现它，React 永远不会重新渲染组件，所以你永远不会看到计数变化！看看点击这个按钮如何 不更新它的文本：
+
+```jsx
+import { useRef } from 'react';
+
+export default function Counter() {
+  let countRef = useRef(0);
+
+  function handleClick() {
+    // 这样并未重新渲染组件！
+    countRef.current = countRef.current + 1;
+  }
+
+  return (
+    <button onClick={handleClick}>
+      你点击了 {countRef.current} 次
+    </button>
+  );
+}
+```
+
+这就是为什么在渲染期间读取 `ref.current` 会导致代码不可靠的原因。如果需要，请改用 `state`。
+
