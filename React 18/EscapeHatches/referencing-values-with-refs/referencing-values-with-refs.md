@@ -162,3 +162,21 @@ export default function Stopwatch() {
 4. 你可以随时读取 `state`。但是，每次渲染都有自己不变的 `state` 快照。
 
 这是一个使用 `state` 实现的计数器按钮：
+
+```jsx
+import { useState } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+  }
+
+  return (
+    <button onClick={handleClick}>
+      你点击了 {count} 次
+    </button>
+  );
+}
+```
