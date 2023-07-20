@@ -206,3 +206,17 @@ export default function Counter() {
 
 这就是为什么在渲染期间读取 `ref.current` 会导致代码不可靠的原因。如果需要，请改用 `state`。
 
+### useRef 内部是如何运行的？ 
+尽管 `useState` 和 `useRef` 都是由 React 提供的，原则上 useRef 可以在 `useState` 的基础上 实现。 你可以想象在 React 内部，`useRef` 是这样实现的：
+
+```jsx
+// React 内部
+function useRef(initialValue) {
+  const [ref, unused] = useState({ current: initialValue });
+  return ref;
+}
+```
+
+第一次渲染期间，`useRef` 返回 `{ current: initialValue }`。 该对象由 React 存储，因此在下一次渲染期间将返回相同的对象。 请注意，在这个示例中，`state` 设置函数没有被用到。它是不必要的，因为 `useRef` 总是需要返回相同的对象！
+
+React 提供了一个内置版本的 `useRef`，因为它在实践中很常见。 但是你可以将其视为没有设置函数的常规 `state` 变量。 如果你熟悉面向对象编程，`ref` 可能会让你想起实例字段 —— 但是你写的不是 `this.something`，而是 `somethingRef.current`。
