@@ -247,5 +247,281 @@ console.log(ref.current); // 5
 ### ref 和 DOM 
 你可以将 `ref` 指向任何值。但是，`ref` 最常见的用法是访问 DOM 元素。例如，如果你想以编程方式聚焦一个输入框，这种用法就会派上用场。当你将 `ref` 传递给 JSX 中的 `ref` 属性时，比如 `<div ref={myRef}>`，React 会将相应的 DOM 元素放入 `myRef.current` 中。你可以在 使用 `ref` 操作 DOM 中阅读更多相关信息。
 
+### 摘要
++ `ref` 是一个应急方案，用于保留不用于渲染的值。 你不会经常需要它们。
++ `ref` 是一个普通的 JavaScript 对象，具有一个名为 `current` 的属性，你可以对其进行读取或设置。
++ 你可以通过调用 `useRef` Hook 来让 React 给你一个 `ref`。
++ 与 `state` 一样，`ref` 允许你在组件的重新渲染之间保留信息。
++ 与 `state` 不同，设置 `ref` 的 `current` 值不会触发重新渲染。
++ 不要在渲染过程中读取或写入 `ref.current`。这使你的组件难以预测。
 
+### 尝试一些挑战
 
+#### 第 1 个挑战 共 4 个挑战: 修复坏掉的聊天输入框 
+输入消息并单击“发送”。你会注意到，在看到“已发送！”提示框之前有 3 秒的延迟。在此延迟期间，你可以看到一个“撤消”按钮。点击它。这个“撤消”按钮应该阻止“发送！”消息弹出。它通过调用 `clearTimeout` 来做到这点，这一步骤需要使用在 `handleSend` 时保存的 timeout ID。但是，即使在单击“撤消”后，“已发送！”消息仍然出现。找出它不起作用的原因，然后修复它。
+
+```jsx
+import { useState } from 'react';
+
+export default function Chat() {
+    const [text, setText] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    let timeoutID = null;
+
+    function handleSend() {
+        setIsSending(true);
+        timeoutID = setTimeout(() => {
+            alert('已发送！');
+            setIsSending(false);
+        }, 3000);
+    }
+
+    function handleUndo() {
+        setIsSending(false);
+        clearTimeout(timeoutID);
+    }
+
+    return (
+        <>
+            <input
+                disabled={isSending}
+                value={text}
+                onChange={e => setText(e.target.value)}
+            />
+            <button
+                disabled={isSending}
+                onClick={handleSend}>
+                {isSending ? '发送中……' : '发送'}
+            </button>
+            {isSending &&
+                <button onClick={handleUndo}>
+                    撤销
+                </button>
+            }
+        </>
+    );
+}
+```
+
+每当你的组件重新渲染时（例如当你设置 `state` 时），所有局部变量都会从头开始初始化。这就是为什么你不能将 timeout ID 保存在像 timeoutID 这样的局部变量中，然后期望未来另一个事件处理器“看到”它。相反，将它存储在一个 `ref` 中，React 将在渲染之间保留它。
+
+```jsx
+import { useState, useRef } from 'react';
+
+export default function Chat() {
+  const [text, setText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const timeoutRef = useRef(null);
+
+  function handleSend() {
+    setIsSending(true);
+    timeoutRef.current = setTimeout(() => {
+      alert('已发送!');
+      setIsSending(false);
+    }, 3000);
+  }
+
+  function handleUndo() {
+    setIsSending(false);
+    clearTimeout(timeoutRef.current);
+  }
+
+  return (
+    <>
+      <input
+        disabled={isSending}
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button
+        disabled={isSending}
+        onClick={handleSend}>
+        {isSending ? '发送中……' : '发送'}
+      </button>
+      {isSending &&
+        <button onClick={handleUndo}>
+          撤销
+        </button>
+      }
+    </>
+  );
+}
+```
+
+### 第 2 个挑战 共 4 个挑战: 修复无法重新渲染的组件 
+这个按钮本该在显示“开”和“关”之间切换。但是，它始终显示“关”。这段代码有什么问题？修复它。
+
+```jsx
+import { useRef } from 'react';
+
+export default function Toggle() {
+  const isOnRef = useRef(false);
+
+  return (
+    <button onClick={() => {
+      isOnRef.current = !isOnRef.current;
+    }}>
+      {isOnRef.current ? '开' : '关'}
+    </button>
+  );
+}
+```
+
+在这个例子中，`ref` 的 `current` 值被用于计算渲染输出：`{isOnRef.current ? '开'：'关'}`。这表明此信息本来不应该在 `ref` 中，而应该放在 `state` 里。要修复它，请删除 `ref` ，使用 `state` 代替：
+
+### 第 3 个挑战 共 4 个挑战: 修复防抖 
+
+这个例子中，所有按钮点击处理器都是 “防抖的”。 要了解这意味着什么，请按下其中一个按钮。注意消息在一秒后显示。如果你在等待消息时按下按钮，计时器将重置。因此如果你多次快速单击同一个按钮，则直到你停止单击 之后 1 秒钟，该消息才会显示。防抖可以让你将一些动作推迟到用户“停止动作”之后。
+
+这个例子可以正常运行，但并不完全符合预期。按钮不是独立的。要查看问题，请单击其中一个按钮，然后立即单击另一个按钮。你本来期望在延迟之后，你会看到两个按钮的消息。但只有最后一个按钮的消息出现了。第一个按钮的消息丢失了。
+
+为什么按钮会相互干扰呢？查找并修复问题。
+
+```jsx
+let timeoutID;
+
+function DebouncedButton({ onClick, children }) {
+  return (
+    <button onClick={() => {
+      clearTimeout(timeoutID);
+      timeoutID = setTimeout(() => {
+        onClick();
+      }, 1000);
+    }}>
+      {children}
+    </button>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <>
+      <DebouncedButton
+        onClick={() => alert('宇宙飞船已发射！')}
+      >
+        发射宇宙飞船
+      </DebouncedButton>
+      <DebouncedButton
+        onClick={() => alert('汤煮好了！')}
+      >
+        煮点儿汤
+      </DebouncedButton>
+      <DebouncedButton
+        onClick={() => alert('摇篮曲唱完了！')}
+      >
+        唱首摇篮曲
+      </DebouncedButton>
+    </>
+  )
+}
+```
+
+像 `timeoutID` 这样的变量是被所有组件共享的。这就是为什么单击第二个按钮会重置第一个按钮未完成的 `timeout` 的原因。要解决此问题，你可以把 `timeout` 保存在 `ref` 中。每个按钮都有自己的 `ref`，因此它们不会相互冲突。请注意快速单击两个按钮如何显示两个消息。
+
+```jsx
+import { useRef } from 'react';
+
+function DebouncedButton({ onClick, children }) {
+  const timeoutRef = useRef(null);
+  return (
+    <button onClick={() => {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        onClick();
+      }, 1000);
+    }}>
+      {children}
+    </button>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <>
+      <DebouncedButton
+        onClick={() => alert('宇宙飞船已发射！')}
+      >
+        发射宇宙飞船
+      </DebouncedButton>
+      <DebouncedButton
+        onClick={() => alert('汤煮好了！')}
+      >
+        煮点儿汤
+      </DebouncedButton>
+      <DebouncedButton
+        onClick={() => alert('摇篮曲唱完了！')}
+      >
+        唱首摇篮曲
+      </DebouncedButton>
+    </>
+  )
+}
+```
+
+### 第 4 个挑战 共 4 个挑战: 读取最新的 `state`
+
+在此示例中，当你按下“发送”后，在显示消息之前会有一小段延迟。输入“你好”，按下发送，然后再次快速编辑输入。尽管你进行了编辑，提示框仍会显示“你好”（这是按钮被点击 那一刻 `state` 的值）。
+
+通常，这种行为是你在应用程序中想要的。但是，有时可能需要一些异步代码来读取某些 `state` 的 最新 版本。你能想出一种方法，让提示框显示 当前 输入文本而不是点击时的内容吗？
+
+```jsx
+import { useState, useRef } from 'react';
+
+export default function Chat() {
+  const [text, setText] = useState('');
+
+  function handleSend() {
+    setTimeout(() => {
+      alert('正在发送：' + text);
+    }, 3000);
+  }
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button
+        onClick={handleSend}>
+        发送
+      </button>
+    </>
+  );
+}
+```
+
+`state` 运作起来 就像快照，因此你无法从 `timeout` 等异步操作中读取最新的 `state`。但是，你可以在 `ref` 中保存最新的输入文本。`ref` 是可变的，因此你可以随时读取 `current` 属性。由于当前文本也用于渲染，在这个例子中，你需要 同时 使用一个 `state` 变量（用于渲染）和 一个 `ref`（在 `timeout` 时读取它）。你需要手动更新当前的 `ref` 值。
+
+```jsx
+import { useState, useRef } from 'react';
+
+export default function Chat() {
+  const [text, setText] = useState('');
+  const textRef = useRef(text);
+
+  function handleChange(e) {
+    setText(e.target.value);
+    textRef.current = e.target.value;
+  }
+
+  function handleSend() {
+    setTimeout(() => {
+      alert('正在发送：' + textRef.current);
+    }, 3000);
+  }
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={handleChange}
+      />
+      <button
+        onClick={handleSend}>
+        发送
+      </button>
+    </>
+  );
+}
+```
