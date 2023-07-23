@@ -87,3 +87,225 @@ const ShippingForm = memo(function ShippingForm({ onSubmit }) {
 ```
 
 当代码像上面一样改变后，如果 props 与上一次渲染时相同，`ShippingForm` 将跳过重新渲染。这时缓存函数就变得很重要。假设定义了 `handleSubmit` 而没有定义 `useCallback`：
+
+```jsx
+function ProductPage({ productId, referrer, theme }) {
+  // 每当 theme 改变时，都会生成一个不同的函数
+  function handleSubmit(orderDetails) {
+    post('/product/' + productId + '/buy', {
+      referrer,
+      orderDetails,
+    });
+  }
+  
+  return (
+    <div className={theme}>
+      {/* 这将导致 ShippingForm props 永远都不会是相同的，并且每次它都会重新渲染 */}
+      <ShippingForm onSubmit={handleSubmit} />
+    </div>
+  );
+}
+```
+
+与字面量对象 `{}` 总是会创建新对象类似，在 JavaScript 中，`function () {}` 或者 `() => {}` 总是会生成不同的函数。正常情况下，这不会有问题，但是这意味着 `ShippingForm` props 将永远不会是相同的，并且 `memo` 对性能的优化永远不会生效。而这就是 `useCallback` 起作用的地方
+
+```jsx
+function ProductPage({ productId, referrer, theme }) {
+  // 在多次渲染中缓存函数
+  const handleSubmit = useCallback((orderDetails) => {
+    post('/product/' + productId + '/buy', {
+      referrer,
+      orderDetails,
+    });
+  }, [productId, referrer]); // 只要这些依赖没有改变
+
+  return (
+    <div className={theme}>
+      {/* ShippingForm 就会收到同样的 props 并且跳过重新渲染 */}
+      <ShippingForm onSubmit={handleSubmit} />
+    </div>
+  );
+}
+```
+
+将 `handleSubmit` 传递给 `useCallback` 就可以确保它在多次重新渲染之间是相同的函数，直到依赖发生改变。注意，除非出于某种特定原因，否则不必将一个函数包裹在 `useCallback` 中。在本例中，你将它传递到了包裹在 `memo` 中的组件，这允许它跳过重新渲染。不过还有其他场景可能需要用到 `useCallback`，本章将对此进行进一步描述。
+`useCallback` 只应作用于性能优化。如果代码在没有它的情况下无法运行，请找到根本问题并首先修复它，然后再使用 `useCallback`。
+
+### useCallback 与 useMemo 有何关系？ 
+`useMemo` 经常与 `useCallback` 一同出现。当尝试优化子组件时，它们都很有用。他们会 记住（或者说，缓存）正在传递的东西：
+
+```jsx
+import { useMemo, useCallback } from 'react';
+
+function ProductPage({ productId, referrer }) {
+  const product = useData('/product/' + productId);
+
+  // 调用函数并缓存结果
+  const requirements = useMemo(() => { 
+    return computeRequirements(product);
+  }, [product]);
+
+  // 缓存函数本身
+  const handleSubmit = useCallback((orderDetails) => { 
+    post('/product/' + productId + '/buy', {
+      referrer,
+      orderDetails,
+    });
+  }, [productId, referrer]);
+
+  return (
+    <div className={theme}>
+      <ShippingForm requirements={requirements} onSubmit={handleSubmit} />
+    </div>
+  );
+}
+```
+
+#### 区别在于你需要缓存什么:
++ *`useMemo` 缓存函数调用的结果。* 在这里，它缓存了调用 `computeRequirements(product)` 的结果。除非 `product` 发生改变，否则它将不会发生变化。这让你向下传递 `requirements` 时而无需不必要地重新渲染 `ShippingForm`。必要时，React 将会调用传入的函数重新计算结果。
++ *`useCallback` 缓存函数本身。* 不像 useMemo，它不会调用你传入的函数。相反，它缓存此函数。从而除非 productId 或 referrer 发生改变，handleSubmit 自己将不会发生改变。这让你向下传递 handleSubmit 函数而无需不必要地重新渲染 ShippingForm。直至用户提交表单，你的代码都将不会运行。
+
+如果你已经熟悉了 `useMemo`，你可能发现将 `useCallback` 视为以下内容会很有帮助：
+
+```jsx
+// 在 React 内部的简化实现
+function useCallback(fn, dependencies) {
+  return useMemo(() => fn, dependencies);
+}
+```
+
+### 是否应该在任何地方添加 useCallback？
+如果你的应用程序与本网站类似，并且大多数交互都很粗糙（例如替换页面或整个部分），则通常不需要缓存。另一方面，如果你的应用更像是一个绘图编辑器，并且大多数交互都是精细的（如移动形状），那么你可能会发现缓存非常有用
+使用 `useCallback` 缓存函数仅在少数情况下有意义：
+
++ 将其作为 props 传递给包装在 `[memo]` 中的组件。如果 props 未更改，则希望跳过重新渲染。缓存允许组件仅在依赖项更改时重新渲染。
++ 传递的函数可能作为某些 Hook 的依赖。比如，另一个包裹在 `useCallback` 中的函数依赖于它，或者依赖于 `useEffect` 中的函数。
+
+在其他情况下，将函数包装在 `useCallback` 中没有任何意义。不过即使这样做了，也没有很大的坏处。所以有些团队选择不考虑个案，从而尽可能缓存。不好的地方可能是降低了代码可读性。而且，并不是所有的缓存都是有效的：一个始终是新的值足以破坏整个组件的缓存。
+
+请注意，`useCallback` 不会阻止创建函数。你总是在创建一个函数（这很好！），但是如果没有任何东西改变，React 会忽略它并返回缓存的函数。
+
+#### 在实践中, 你可以通过遵循一些原则来减少许多不必要的记忆化：
+1. 当一个组件在视觉上包装其他组件时，让它 接受 JSX 作为子元素。随后，如果包装组件更新自己的 state，React 知道它的子组件不需要重新渲染。
+2. 建议使用 state 并且不要 *提升状态* 超过必要的程度。不要将表单和项是否悬停等短暂状态保存在树的顶部或全局状态库中。
+3. 保持 *渲染逻辑纯粹*。如果重新渲染组件会导致问题或产生一些明显的视觉瑕疵，那么这是组件自身的问题！请修复这个错误，而不是添加记忆化。
+4. 避免 *不必要地更新 Effect。* React 应用程序中的大多数性能问题都是由 Effect 的更新链引起的，这些更新链不断导致组件重新渲染。
+5. 尝试 *从 Effect 中删除不必要的依赖关系。* 例如，将某些对象或函数移动到副作用内部或组件外部通常更简单，而不是使用记忆化。
+
+### 使用 useCallback 与直接声明函数的区别
+#### 第 1 个示例 共 2 个挑战: 使用 useCallback 和 memo 跳过函数的重新渲染
+在这个例子中，`ShippingForm` 组件被人为地减慢了速度，以便你可以看到渲染的 React 组件真正变慢时会发生什么。尝试递增计数器并切换主题。
+
+递增计数器感觉很慢，因为它会强制变慢 `ShippingForm` 的重新渲染。这是意料之中的，因为计数器已更改，因此你需要在屏幕上反映用户的新选择。  
+
+接下来，尝试更改主题。将 `useCallback` 和 `memo` 结合使用后，尽管人为减缓了速度，但它还是很快。由于 `useCallback` 依赖 `productId` 与 `referrer` 自上次渲染后始终没有发生改变，因此 `handleSubmit` 也没有改变。由于 `handleSubmit` 没有发生改变，`ShippingForm` 就跳过了重新渲染。
+
+##### App.js
+```jsx
+import { useState } from 'react';
+import ProductPage from './ProductPage.js';
+
+export default function App() {
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <ProductPage
+        referrerId="wizard_of_oz"
+        productId={123}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+##### ProductPage.js
+```jsx
+import { useCallback } from 'react';
+import ShippingForm from './ShippingForm.js';
+
+export default function ProductPage({ productId, referrer, theme }) {
+  const handleSubmit = useCallback((orderDetails) => {
+    post('/product/' + productId + '/buy', {
+      referrer,
+      orderDetails,
+    });
+  }, [productId, referrer]);
+
+  return (
+    <div className={theme}>
+      <ShippingForm onSubmit={handleSubmit} />
+    </div>
+  );
+}
+
+function post(url, data) {
+  // 想象这发送了一个请求
+  console.log('POST /' + url);
+  console.log(data);
+}
+```
+
+##### ShippingForm.js
+```jsx
+import { memo, useState } from 'react';
+
+const ShippingForm = memo(function ShippingForm({ onSubmit }) {
+  const [count, setCount] = useState(1);
+
+  console.log('[ARTIFICIALLY SLOW] Rendering <ShippingForm />');
+  
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 500 毫秒内不执行任何操作来模拟极慢的代码
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    const orderDetails = {
+      ...Object.fromEntries(formData),
+      count
+    };
+    
+    onSubmit(orderDetails);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <p><b>Note: <code>ShippingForm</code> is artificially slowed down!</b></p>
+      <label>
+        Number of items:
+        <button type="button" onClick={() => setCount(count - 1)}>–</button>
+        {count}
+        <button type="button" onClick={() => setCount(count + 1)}>+</button>
+      </label>
+      <label>
+        Street:
+        <input name="street" />
+      </label>
+      <label>
+        City:
+        <input name="city" />
+      </label>
+      <label>
+        Postal code:
+        <input name="zipCode" />
+      </label>
+      <button type="submit">Submit</button>
+    </form>
+  );
+});
+
+export default ShippingForm;
+```
