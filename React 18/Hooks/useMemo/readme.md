@@ -121,3 +121,117 @@ console.timeEnd('filter array');
 3. 保持 *渲染逻辑纯粹*。如果重新渲染组件会导致问题或产生一些明显的视觉瑕疵，那么这是组件自身的问题！请修复这个错误，而不是添加记忆化。
 4. 避免 *不必要地更新 Effect。* React 应用程序中的大多数性能问题都是由 Effect 的更新链引起的，这些更新链不断导致组件重新渲染。
 5. 尝试 *从 Effect 中删除不必要的依赖关系。* 例如，将某些对象或函数移动到副作用内部或组件外部通常更简单，而不是使用记忆化。
+
+### 使用 useMemo 和直接计算之间的区别
+#### 第 1 个示例 共 2 个挑战: 使用 useMemo 跳过重复计算 
+在这个例子中，`filterTodos` 的执行被 人为减速了，这样就可以看到渲染期间调用的某些函数确实很慢时会发生什么。尝试切换选项卡并切换主题。
+
+切换选项卡会感觉很慢，因为它迫使减速的 `filterTodos` 重新执行。这是预料之中的效果，因为“选项卡”已更改，因此整个计算 需要 重新运行。如果你好奇为什么它会运行两次，此处 对此进行了解释。
+
+然后试试切换主题。在 `useMemo` 的帮助下，尽管已经被人为减速，但是它还是很快！缓慢的 `filterTodos` 调用被跳过，因为 `todos` 和 `tab`（你将其作为依赖项传递给 `useMemo`）自上次渲染以来都没有改变。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+import { createTodos } from './utils.js';
+import TodoList from './TodoList.js';
+
+const todos = createTodos();
+
+export default function App() {
+  const [tab, setTab] = useState('all');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <button onClick={() => setTab('all')}>
+        All
+      </button>
+      <button onClick={() => setTab('active')}>
+        Active
+      </button>
+      <button onClick={() => setTab('completed')}>
+        Completed
+      </button>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <TodoList
+        todos={todos}
+        tab={tab}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+##### TodoList.js
+
+```jsx
+import { useMemo } from 'react';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab]
+  );
+  return (
+    <div className={theme}>
+      <p><b>Note: <code>filterTodos</code> is artificially slowed down!</b></p>
+      <ul>
+        {visibleTodos.map(todo => (
+          <li key={todo.id}>
+            {todo.completed ?
+              <s>{todo.text}</s> :
+              todo.text
+            }
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+##### utils.js
+
+```jsx
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+
+export function filterTodos(todos, tab) {
+  console.log('[ARTIFICIALLY SLOW] Filtering ' + todos.length + ' todos for "' + tab + '" tab.');
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 在 500 毫秒内不执行任何操作以模拟极慢的代码
+  }
+
+  return todos.filter(todo => {
+    if (tab === 'all') {
+      return true;
+    } else if (tab === 'active') {
+      return !todo.completed;
+    } else if (tab === 'completed') {
+      return todo.completed;
+    }
+  });
+}
+```
