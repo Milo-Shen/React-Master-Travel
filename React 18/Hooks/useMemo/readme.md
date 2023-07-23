@@ -235,3 +235,66 @@ export function filterTodos(todos, tab) {
   });
 }
 ```
+
+### 跳过组件的重新渲染 
+在某些情况下，`useMemo` 还可以帮助你优化重新渲染子组件的性能。为了说明这一点，假设这个 `TodoList` 组件将 `visibleTodos` 作为 `props` 传递给子 `List` 组件：
+
+```jsx
+export default function TodoList({ todos, tab, theme }) {
+  // ...
+  return (
+    <div className={theme}>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+你已经注意到切换 `theme` 属性会使应用程序冻结片刻，但是如果你从 JSX 中删除 `<List />`，感觉会很快。这说明尝试优化 `List` 组件是值得的。
+
+默认情况下，当一个组件重新渲染时，React 会递归地重新渲染它的所有子组件。这就是为什么当 `TodoList` 使用不同的 `theme` 重新渲染时，`List` 组件 也会 重新渲染。这对于不需要太多计算来重新渲染的组件来说很好。但是如果你已经确认重新渲染很慢，你可以通过将它包装在 `memo` 中，这样当它的 `props` 跟上一次渲染相同的时候它就会跳过本次渲染：
+
+```jsx
+import { memo } from 'react';
+
+const List = memo(function List({ items }) {
+  // ...
+});
+```
+
+通过此更改，如果 `List` 的所有 `props` 都与上次渲染时相同，则 `List` 将跳过重新渲染。这就是缓存计算变得重要的地方！想象一下，你在没有 `useMemo` 的情况下计算了 `visibleTodos`：
+
+```jsx
+export default function TodoList({ todos, tab, theme }) {
+  // 每当主题发生变化时，这将是一个不同的数组……
+  const visibleTodos = filterTodos(todos, tab);
+  return (
+    <div className={theme}>
+      {/* ... 所以List的props永远不会一样，每次都会重新渲染 */}
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+在上面的示例中，`filterTodos` 函数总是创建一个不同数组，类似于 `{}` 总是创建一个新对象的方式。通常，这不是问题，但这意味着 `List` 属性永远不会相同，并且你的 `memo` 优化将不起作用。这就是 `useMemo` 派上用场的地方：
+
+```jsx
+export default function TodoList({ todos, tab, theme }) {
+  // 告诉 React 在重新渲染之间缓存你的计算结果...
+  const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab] // ...所以只要这些依赖项不变...
+  );
+  return (
+    <div className={theme}>
+      {/* ... List 也就会接受到相同的 props 并且会跳过重新渲染 */}
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+通过将 `visibleTodos` 的计算函数包裹在 `useMemo` 中，你可以确保它在重新渲染之间具有相同值，直到依赖项发生变化。你 不必 将计算函数包裹在 `useMemo` 中，除非你出于某些特定原因这样做。在此示例中，这样做的原因是你将它传递给包裹在 `memo` 中的组件，这使得它可以跳过重新渲染。添加 `useMemo` 的其他一些原因将在本页进一步描述。
+
+
