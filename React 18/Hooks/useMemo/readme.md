@@ -319,3 +319,159 @@ export default function TodoList({ todos, tab, theme }) {
 但是，如果 React 发现其与之前渲染的 JSX 是完全相同的，它不会尝试重新渲染你的组件。这是因为 JSX 节点是 不可变的（immutable）。JSX 节点对象不可能随时间改变，因此 React 知道跳过重新渲染是安全的。然而，为了使其工作，节点必须 实际上是同一个对象，而不仅仅是在代码中看起来相同。这就是 `useMemo` 在此示例中所做的。
 
 手动将 JSX 节点包裹到 `useMemo` 中并不方便，比如你不能在条件语句中这样做。这就是为什么通常会选择使用 `memo` 包装组件而不是使用 `useMemo` 包装 JSX 节点。
+
+### 跳过重新渲染和总是重新渲染之间的区别
+#### 第 1 个示例 共 2 个挑战: 用 useMemo 和 memo 跳过重新渲染 
+
+在此示例中，`List` 组件被 人为地减速了，以便可以看到当渲染的 React 组件真正变慢时会发生什么。尝试切换选项卡并切换主题。
+
+切换选项卡感觉很慢，因为它迫使减速的 `List` 重新渲染。这是预料之中的，因为选项卡 `tab` 已更改，因此你需要在屏幕上展示用户的新选择。
+
+接下来，尝试切换主题。感谢 `useMemo` 和 `memo`，尽管被人为减速了，但是它还是很快！由于作为依赖性传递给 `useMemo` 的 `todos` 与 `tab` 都没有发生改变，因此 `visibleItems` 不会发生改变。由于 `visibleItems` 数组从上一次渲染之后就没有发生改变，所以 `List` 会跳过重新渲染。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+import { createTodos } from './utils.js';
+import TodoList from './TodoList.js';
+
+const todos = createTodos();
+
+export default function App() {
+  const [tab, setTab] = useState('all');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <button onClick={() => setTab('all')}>
+        All
+      </button>
+      <button onClick={() => setTab('active')}>
+        Active
+      </button>
+      <button onClick={() => setTab('completed')}>
+        Completed
+      </button>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <TodoList
+        todos={todos}
+        tab={tab}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+##### TodoList.js
+
+```jsx
+import { useMemo } from 'react';
+import List from './List.js';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab]
+  );
+  return (
+    <div className={theme}>
+      <p><b>Note: <code>List</code> is artificially slowed down!</b></p>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+##### List.js
+
+```jsx
+import { useMemo } from 'react';
+import List from './List.js';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab]
+  );
+  return (
+    <div className={theme}>
+      <p><b>Note: <code>List</code> is artificially slowed down!</b></p>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+##### List.js
+
+```jsx
+import { memo } from 'react';
+
+const List = memo(function List({ items }) {
+  console.log('[ARTIFICIALLY SLOW] Rendering <List /> with ' + items.length + ' items');
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 在 500 毫秒内不执行任何操作以模拟极慢的代码
+  }
+
+  return (
+    <ul>
+      {items.map(item => (
+        <li key={item.id}>
+          {item.completed ?
+            <s>{item.text}</s> :
+            item.text
+          }
+        </li>
+      ))}
+    </ul>
+  );
+});
+
+export default List;
+```
+
+##### utils.js
+```jsx
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+
+export function filterTodos(todos, tab) {
+  return todos.filter(todo => {
+    if (tab === 'all') {
+      return true;
+    } else if (tab === 'active') {
+      return !todo.completed;
+    } else if (tab === 'completed') {
+      return todo.completed;
+    }
+  });
+}
+```
+
+然而，这是 删除了人为减速后 的相同代码。此时你应该能感觉到缺少 `useMemo` 后效果差异非常明显。
+
+很多时候，没有记忆化的代码可以正常工作。如果你的交互足够快，则不需要记忆化。
+
+请记住，在生产环境下运行 React 进行测试，并且禁用 React 开发者工具，并准备好与使用你应用程序的用户类似的设备，这样可以对你的应用程序性能有一个更加准确的判断。
