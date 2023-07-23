@@ -475,3 +475,48 @@ export function filterTodos(todos, tab) {
 很多时候，没有记忆化的代码可以正常工作。如果你的交互足够快，则不需要记忆化。
 
 请记住，在生产环境下运行 React 进行测试，并且禁用 React 开发者工具，并准备好与使用你应用程序的用户类似的设备，这样可以对你的应用程序性能有一个更加准确的判断。
+
+### 记忆另一个 Hook 的依赖 
+假设你有一个计算函数依赖于直接在组件主体中创建的对象：
+
+```jsx
+function Dropdown({ allItems, text }) {
+    const searchOptions = {matchMode: 'whole-word', text};
+
+    const visibleItems = useMemo(() => {
+        return searchItems(allItems, searchOptions);
+    }, [allItems, searchOptions]); // 🚩 提醒：依赖于在组件主体中创建的对象
+    // ...
+}
+```
+
+依赖这样的对象会破坏记忆化。当组件重新渲染时，组件主体内的所有代码都会再次运行。创建 `searchOptions` 对象的代码行也将在每次重新渲染时运行。因为 `searchOptions` 是你的 `useMemo` 调用的依赖项，而且每次都不一样，React 知道依赖项是不同的，并且每次都重新计算 `searchItems`。
+
+要解决此问题，你可以在将其作为依赖项传递之前记忆 `searchOptions` 对象 本身：
+
+```jsx
+function Dropdown({ allItems, text }) {
+    const searchOptions = useMemo(() => {
+        return {matchMode: 'whole-word', text};
+    }, [text]); // ✅ 只有当 text 改变时才会发生改变
+
+    const visibleItems = useMemo(() => {
+        return searchItems(allItems, searchOptions);
+    }, [allItems, searchOptions]); // ✅ 只有当 allItems 或 serachOptions 改变时才会发生改变
+    // ...
+}
+```
+
+在上面的例子中，如果 `text` 没有改变，`searchOptions` 对象也不会改变。然而，更好的解决方法是将 `searchOptions` 对象声明移到 `useMemo` 计算函数的 内部：
+
+```jsx
+function Dropdown({ allItems, text }) {
+    const visibleItems = useMemo(() => {
+        const searchOptions = {matchMode: 'whole-word', text};
+        return searchItems(allItems, searchOptions);
+    }, [allItems, text]); // ✅ 只有当 allItems 或者 text 改变的时候才会重新计算
+    // ...
+}
+```
+
+现在你的计算直接取决于 `text`（这是一个字符串，不会“意外地”变得不同）。
