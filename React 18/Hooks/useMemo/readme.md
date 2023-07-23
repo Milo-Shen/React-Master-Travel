@@ -297,4 +297,25 @@ export default function TodoList({ todos, tab, theme }) {
 
 通过将 `visibleTodos` 的计算函数包裹在 `useMemo` 中，你可以确保它在重新渲染之间具有相同值，直到依赖项发生变化。你 不必 将计算函数包裹在 `useMemo` 中，除非你出于某些特定原因这样做。在此示例中，这样做的原因是你将它传递给包裹在 `memo` 中的组件，这使得它可以跳过重新渲染。添加 `useMemo` 的其他一些原因将在本页进一步描述。
 
+### 记忆单个 JSX 节点 
+你可以将 `<List />` JSX 节点本身包裹在 `useMemo` 中，而不是将 `List` 包裹在 `memo` 中：
 
+```jsx
+export default function TodoList({ todos, tab, theme }) {
+  const visibleTodos = useMemo(() => filterTodos(todos, tab), [todos, tab]);
+  const children = useMemo(() => <List items={visibleTodos} />, [visibleTodos]);
+  return (
+    <div className={theme}>
+      {children}
+    </div>
+  );
+}
+```
+
+他们的行为表现是一致的。如果 `visibleTodos` 没有改变，`List` 将不会重新渲染。
+
+像 `<List items={visibleTodos} />` 这样的 JSX 节点是一个类似 `{ type: List, props: { items: visibleTodos } }` 的对象。创建这个对象的开销很低，但是 React 不知道它的内容是否和上次一样。这就是为什么默认情况下，React 会重新渲染 `List` 组件。
+
+但是，如果 React 发现其与之前渲染的 JSX 是完全相同的，它不会尝试重新渲染你的组件。这是因为 JSX 节点是 不可变的（immutable）。JSX 节点对象不可能随时间改变，因此 React 知道跳过重新渲染是安全的。然而，为了使其工作，节点必须 实际上是同一个对象，而不仅仅是在代码中看起来相同。这就是 `useMemo` 在此示例中所做的。
+
+手动将 JSX 节点包裹到 `useMemo` 中并不方便，比如你不能在条件语句中这样做。这就是为什么通常会选择使用 `memo` 包装组件而不是使用 `useMemo` 包装 JSX 节点。
