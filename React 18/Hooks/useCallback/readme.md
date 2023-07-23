@@ -309,3 +309,61 @@ const ShippingForm = memo(function ShippingForm({ onSubmit }) {
 
 export default ShippingForm;
 ```
+
+### 从记忆化回调中更新 state 
+有时，你可能在记忆化回调汇中基于之前的 state 来更新 state。
+
+下面的 handleAddTodo 函数将 todos 指定为依赖项，因为它会从中计算下一个 todos：
+
+```jsx
+function TodoList() {
+    const [todos, setTodos] = useState([]);
+
+    const handleAddTodo = useCallback((text) => {
+        const newTodo = {id: nextId++, text};
+        setTodos([...todos, newTodo]);
+    }, [todos]);
+    // ...
+}
+```
+
+我们期望记忆化函数具有尽可能少的依赖，当你读取 state 只是为了计算下一个 state 时，你可以通过传递 updater function 以移除该依赖：
+
+```jsx
+function TodoList() {
+    const [todos, setTodos] = useState([]);
+
+    const handleAddTodo = useCallback((text) => {
+        const newTodo = {id: nextId++, text};
+        setTodos(todos => [...todos, newTodo]);
+    }, []); // ✅ 不需要 todos 依赖项
+    // ...
+}
+```
+
+在这里，并不是将 `todos` 作为依赖项并在内部读取它，而是传递一个关于 如何 更新 `state` 的指示器 `(todos => [...todos, newTodo])` 给 React。阅读更多有关 updater function 的内容。
+
+### 防止频繁触发 Effect 
+有时，你想要在 Effect 内部调用函数：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  function createOptions() {
+    return {
+      serverUrl: 'https://localhost:1234',
+      roomId: roomId
+    };
+  }
+
+  useEffect(() => {
+      const options = createOptions();
+      const connection = createConnection();
+      connection.connect();
+      // ...
+  })
+}
+```
+
+这会产生一个问题，每一个响应值都必须声明为 Effect 的依赖。但是如果将 createOptions 声明为依赖，它会导致 Effect 不断重新连接到聊天室：
