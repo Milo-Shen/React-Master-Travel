@@ -56,3 +56,34 @@ function ProductPage({ productId, referrer, theme }) {
 你需要传递两个参数给 `useCallback`：
 1. 在多次渲染中需要缓存的函数
 2. 函数内部需要使用到的所有组件内部值的 依赖列表
+
+初次渲染时，在 `useCallback` 处接收的 返回函数 将会是已经传入的函数。
+在之后的渲染中，React 将会使用 `Object.is` 把 当前的依赖 和已传入之前的依赖进行比较。如果没有任何依赖改变，`useCallback` 将会返回与之前一样的函数。否则 `useCallback` 将返回 *此次* 渲染中传递的函数。
+简而言之，`useCallback` 在多次渲染中缓存一个函数，直至这个函数的依赖发生改变。
+
+#### 让我们通过一个示例看看它何时有用。
+假设你正在从 `ProductPage` 传递一个 `handleSubmit` 函数到 `ShippingForm` 组件中：
+
+```jsx
+function ProductPage({ productId, referrer, theme }) {
+    // ...
+    return (
+        <div className={theme}>
+            <ShippingForm onSubmit={handleSubmit}/>
+        </div>
+    );
+}
+```
+
+注意，切换 `theme` props 后会让应用停滞一小会，但如果将 `<ShippingForm />` 从 JSX 中移除，应用将反应迅速。这就提示尽力优化 `ShippingForm` 组件将会很有用。
+默认情况下，当一个组件重新渲染时， React 将递归渲染它的所有子组件，因此每当因 `theme` 更改时而 `ProductPage` 组件重新渲染时，`ShippingForm` 组件也会重新渲染。这对于不需要大量计算去重新渲染的组件来说影响很小。但如果你发现某次重新渲染很慢，你可以将 `ShippingForm` 组件包裹在 `memo` 中。如果 props 和上一次渲染时相同，那么 `ShippingForm` 组件将跳过重新渲染。
+
+```jsx
+import { memo } from 'react';
+
+const ShippingForm = memo(function ShippingForm({ onSubmit }) {
+  // ...
+});
+```
+
+当代码像上面一样改变后，如果 props 与上一次渲染时相同，`ShippingForm` 将跳过重新渲染。这时缓存函数就变得很重要。假设定义了 `handleSubmit` 而没有定义 `useCallback`：
