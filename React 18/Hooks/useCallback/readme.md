@@ -367,3 +367,203 @@ function ChatRoom({ roomId }) {
 ```
 
 这会产生一个问题，每一个响应值都必须声明为 Effect 的依赖。但是如果将 createOptions 声明为依赖，它会导致 Effect 不断重新连接到聊天室：
+
+```jsx
+  useEffect(() => {
+    const options = createOptions();
+    const connection = createConnection();
+    connection.connect();
+    return () => connection.disconnect();
+  }, [createOptions]); // 🔴 问题：这个依赖在每一次渲染中都会发生改变
+```
+
+为了解决这个问题，需要在 Effect 中将要调用的函数包裹在 useCallback 中：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    const createOptions = useCallback(() => {
+        return {
+            serverUrl: 'https://localhost:1234',
+            roomId: roomId
+        };
+    }, [roomId]); // ✅ 仅当 roomId 更改时更改
+
+    useEffect(() => {
+        const options = createOptions();
+        const connection = createConnection();
+        connection.connect();
+        return () => connection.disconnect();
+    }, [createOptions]); // ✅ 仅当 createOptions 更改时更改
+    // ...
+}
+```
+
+这将确保如果 roomId 相同，`createOptions` 在多次渲染中会是同一个函数。但是，最好消除对函数依赖项的需求。将你的函数移入 Effect 内部：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        function createOptions() { // ✅ 无需使用回调或函数依赖！
+            return {
+                serverUrl: 'https://localhost:1234',
+                roomId: roomId
+            };
+        }
+
+        const options = createOptions();
+        const connection = createConnection();
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 仅当 roomId 更改时更改
+    // ...
+}
+```
+
+### 优化自定义 Hook
+如果你正在编写一个 自定义 Hook，建议将它返回的任何函数包裹在 `useCallback` 中：
+
+```jsx
+function useRouter() {
+  const { dispatch } = useContext(RouterStateContext);
+
+  const navigate = useCallback((url) => {
+    dispatch({ type: 'navigate', url });
+  }, [dispatch]);
+
+  const goBack = useCallback(() => {
+    dispatch({ type: 'back' });
+  }, [dispatch]);
+
+  return {
+    navigate,
+    goBack,
+  };
+}
+```
+
+这确保了 Hook 的使用者在需要时能够优化自己的代码。
+
+## 疑难解答 
+### 我的组件每一次渲染时, useCallback 都返回了完全不同的函数 
+
+确保你已经将依赖数组指定为第二个参数！
+
+如果你忘记使用依赖数组，useCallback 每一次都将返回一个新的函数：
+
+```jsx
+function ProductPage({ productId, referrer }) {
+    const handleSubmit = useCallback((orderDetails) => {
+        post('/product/' + productId + '/buy', {
+            referrer,
+            orderDetails,
+        });
+    }); // 🔴 每一次都返回一个新函数：没有依赖项数组
+    // ...
+}
+```
+
+这是将依赖项数组作为第二个参数传递的更正版本：
+
+```jsx
+function ProductPage({ productId, referrer }) {
+    const handleSubmit = useCallback((orderDetails) => {
+        post('/product/' + productId + '/buy', {
+            referrer,
+            orderDetails,
+        });
+    }, [productId, referrer]); // ✅ 必要时返回一个新的函数
+    // ...
+}
+```
+
+如果这没有帮助，那么问题是至少有一个依赖项与之前的渲染不同。你可以通过手动将依赖项记录到控制台来调试此问题：
+
+```jsx
+ const handleSubmit = useCallback((orderDetails) => {
+    // ..
+  }, [productId, referrer]);
+
+  console.log([productId, referrer]);
+```
+
+然后，你可以在控制台中右键单击来自不同重新渲染的数组，并为它们选择“存储为全局变量”。假设第一个被保存为 temp1，第二个被保存为 temp2，然后你可以使用浏览器控制台检查两个数组中的每个依赖项是否相同：
+
+```jsx
+Object.is(temp1[0], temp2[0]); // 数组之间的第一个依赖关系是否相同？
+Object.is(temp1[1], temp2[1]); // 数组之间的第二个依赖关系是否相同？
+Object.is(temp1[2], temp2[2]); // 数组之间的每一个依赖关系是否相同...
+```
+
+### 我需要在循环中为每一个列表项调用 useCallback 函数，但是这不被允许 
+
+```jsx
+function ReportList({ items }) {
+  return (
+    <article>
+      {items.map(item => {
+        // 🔴 你不能在循环中调用 useCallback：
+        const handleClick = useCallback(() => {
+          sendReport(item)
+        }, [item]);
+
+        return (
+          <figure key={item.id}>
+            <Chart onClick={handleClick} />
+          </figure>
+        );
+      })}
+    </article>
+  );
+}
+```
+
+相反，为单个项目提取一个组件，然后使用 useCallback：
+
+```jsx
+function ReportList({ items }) {
+  return (
+    <article>
+      {items.map(item =>
+        <Report key={item.id} item={item} />
+      )}
+    </article>
+  );
+}
+
+function Report({ item }) {
+  // ✅ 在最顶层调用 useCallback
+  const handleClick = useCallback(() => {
+    sendReport(item)
+  }, [item]);
+
+  return (
+    <figure>
+      <Chart onClick={handleClick} />
+    </figure>
+  );
+}
+```
+
+或者，你可以删除最后一个代码段中的 `useCallback`，并将 Report 本身包装在 `memo` 中。如果 `item` props 没有更改，`Report` 将跳过重新渲染，因此 `Chart` 也将跳过重新渲染：
+
+```jsx
+function ReportList({ items }) {
+  // ...
+}
+
+const Report = memo(function Report({ item }) {
+  function handleClick() {
+    sendReport(item);
+  }
+
+  return (
+    <figure>
+      <Chart onClick={handleClick} />
+    </figure>
+  );
+});
+```
