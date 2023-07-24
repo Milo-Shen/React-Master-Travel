@@ -632,3 +632,130 @@ React 调用你的函数两次，所以你会注意到 `todo` 被添加了两次
     text: text
   }, [text]);
 ```
+
+在 JavaScript 中，`() => {` 是箭头函数体的开始标志，因此 `{` 大括号不是对象的一部分。这就是它不返回对象并导致错误的原因。你可以通过添加像 `({` 与 `})` 这样的括号来修复它：
+
+```jsx
+  // 这行得通，但很容易有人再次破坏
+  const searchOptions = useMemo(() => ({
+    matchMode: 'whole-word',
+    text: text
+  }), [text]);
+```
+
+然而，这仍然令人困惑，而且对于某些人来说，通过移除括号来破坏它太容易了。
+
+为避免此错误，请显式编写 `return` 语句：
+
+```jsx
+  const searchOptions = useMemo(() => {
+    return {
+      matchMode: 'whole-word',
+      text: text
+    };
+  }, [text]);
+```
+
+### 组件每次渲染时，`useMemo` 都会重新计算 
+
+确保你已将依赖项数组指定为第二个参数！
+
+如果你忘记了依赖数组，`useMemo` 将每次重新运行计算：
+
+```jsx
+function TodoList({ todos, tab }) {
+    // 🔴 每次都重新计算：没有依赖数组
+    const visibleTodos = useMemo(() => filterTodos(todos, tab));
+    // ...
+}
+```
+
+这是将依赖项数组作为第二个参数传递的更正版本：
+
+```jsx
+function TodoList({ todos, tab }) {
+    // ✅ 不会不必要地重新计算
+    const visibleTodos = useMemo(() => filterTodos(todos, tab), [todos, tab]);
+    // ...
+}
+```
+
+如果这没有帮助，那么问题是你的至少一个依赖项与之前的渲染不同。你可以通过手动将依赖项记录到控制台来调试此问题：
+
+```jsx
+const visibleTodos = useMemo(() => filterTodos(todos, tab), [todos, tab]);
+console.log([todos, tab]);
+```
+
+然后，你可以在控制台中右键单击来自不同重新渲染的数组，并为它们选择“存储为全局变量”。假设第一个保存为 `temp1`，第二个保存为 `temp2`，然后你可以使用浏览器控制台检查两个数组中的每个依赖项是否相同：
+
+```jsx
+Object.is(temp1[0], temp2[0]); // 数组之间的第一个依赖项是否相同？
+Object.is(temp1[1], temp2[1]); // 数组之间的第二个依赖项是否相同？
+Object.is(temp1[2], temp2[2]); // ... 依此类推 ...
+```
+
+当你发现是哪个依赖项破坏了记忆化时，要么找到一种方法将其删除，要么 也对其进行记忆化。
+
+### 我需要为循环中的每个列表项调用 `useMemo`，但这是不允许的 
+
+假设 `Chart` 组件被包裹在 `memo` 中。当 `ReportList` 组件重新渲染时，你想跳过重新渲染列表中的每个 `Chart`。但是，你不能在循环中调用 `useMemo`：
+
+```jsx
+function ReportList({ items }) {
+  return (
+    <article>
+      {items.map(item => {
+        // 🔴 你不能像这样在循环中调用 useMemo：
+        const data = useMemo(() => calculateReport(item), [item]);
+        return (
+          <figure key={item.id}>
+            <Chart data={data} />
+          </figure>
+        );
+      })}
+    </article>
+  );
+}
+```
+
+相反，为每个 `item` 提取一个组件并为单个 `item` 记忆数据：
+
+```jsx
+function ReportList({ items }) {
+  return (
+    <article>
+      {items.map(item =>
+        <Report key={item.id} item={item} />
+      )}
+    </article>
+  );
+}
+
+function Report({ item }) {
+  // ✅ 在顶层调用 useMemo：
+  const data = useMemo(() => calculateReport(item), [item]);
+  return (
+    <figure>
+      <Chart data={data} />
+    </figure>
+  );
+}
+```
+
+或者，你可以删除 `useMemo` 并将 `Report` 本身包装在 `memo` 中。如果 `item props` 没有改变，`Report` 将跳过重新渲染，因此 `Chart` 也会跳过重新渲染：
+
+```jsx
+function ReportList({ items }) {
+  // ...
+}
+
+const Report = memo(function Report({ item }) {
+  const data = calculateReport(item);
+  return (
+    <figure>
+      <Chart data={data} />
+    </figure>
+  );
+});
+```
