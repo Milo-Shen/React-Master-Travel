@@ -329,3 +329,216 @@ function Button({ children, onClick }) {
   );
 }
 ```
+
+### 覆盖组件树一部分的 context 
+
+通过在 `provider` 中使用不同的值包装树的某个部分，可以覆盖该部分的 `context`。
+
+```jsx
+<ThemeContext.Provider value="dark">
+  ...
+  <ThemeContext.Provider value="light">
+    <Footer />
+  </ThemeContext.Provider>
+  ...
+</ThemeContext.Provider>
+```
+
+你可以根据需要多次嵌套和覆盖 `provider`。
+
+#### 第 1 个示例 共 2 个挑战: 覆盖主题 
+这里，与 `Footer` 外的值为（`"dark"`）的按钮相比，里面 的按钮接收到一个不一样的 `context` 值（`"light"`）。
+
+```jsx
+import { createContext, useContext } from 'react';
+
+const ThemeContext = createContext(null);
+
+export default function MyApp() {
+  return (
+    <ThemeContext.Provider value="dark">
+      <Form />
+    </ThemeContext.Provider>
+  )
+}
+
+function Form() {
+  return (
+    <Panel title="Welcome">
+      <Button>Sign up</Button>
+      <Button>Log in</Button>
+      <ThemeContext.Provider value="light">
+        <Footer />
+      </ThemeContext.Provider>
+    </Panel>
+  );
+}
+
+function Footer() {
+  return (
+    <footer>
+      <Button>Settings</Button>
+    </footer>
+  );
+}
+
+function Panel({ title, children }) {
+  const theme = useContext(ThemeContext);
+  const className = 'panel-' + theme;
+  return (
+    <section className={className}>
+      {title && <h1>{title}</h1>}
+      {children}
+    </section>
+  )
+}
+
+function Button({ children }) {
+  const theme = useContext(ThemeContext);
+  const className = 'button-' + theme;
+  return (
+    <button className={className}>
+      {children}
+    </button>
+  );
+}
+```
+
+#### 第 2 个示例 共 2 个挑战: 自动嵌套标题
+
+在嵌套使用 `context provider` 时，可以“累积”信息。在此示例中，`Section` 组件记录了 `LevelContext`，该 `context` 指定了 `section` 嵌套的深度。它从父级 `section` 中读取 `LevelContext`，然后把 `LevelContext` 的数值加一传递给子级。因此，`Heading` 组件可以根据被 `Section` 组件嵌套的层数自动决定使用 `<h1>`，`<h2>`，`<h3>`，…，中的哪种标签。
+
+##### LevelContext.js
+
+```jsx
+import { createContext } from 'react';
+
+export const LevelContext = createContext(0);
+```
+
+##### App.js
+
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading>Title</Heading>
+      <Section>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Section>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Section>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+##### Section.js
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+##### Heading.js
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 0:
+      throw Error('Heading must be inside a Section!');
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+### 在传递对象和函数时优化重新渲染
+你可以通过 `context` 传递任何值，包括对象和函数。
+
+```jsx
+function MyApp() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  function login(response) {
+    storeCredentials(response.credentials);
+    setCurrentUser(response.user);
+  }
+
+  return (
+    <AuthContext.Provider value={{ currentUser, login }}>
+      <Page />
+    </AuthContext.Provider>
+  );
+}
+```
+
+此处，`context value` 是一个具有两个属性的 JavaScript 对象，其中一个是函数。每当 `MyApp` 出现重新渲染（例如，路由更新）时，这里将会是一个 不同的 对象指向 不同的 函数，因此 React 还必须重新渲染树中调用 `useContext(AuthContext)` 的所有组件。
+
+在较小的应用程序中，这不是问题。但是，如果基础数据如 `currentUser` 没有更改，则不需要重新渲染它们。为了帮助 React 利用这一点，你可以使用 `useCallback` 包装 login 函数，并将对象创建包装到 `useMemo` 中。这是一个性能优化的例子：
+
+```jsx
+import { useCallback, useMemo } from 'react';
+
+function MyApp() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const login = useCallback((response) => {
+    storeCredentials(response.credentials);
+    setCurrentUser(response.user);
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    currentUser,
+    login
+  }), [currentUser, login]);
+
+  return (
+    <AuthContext.Provider value={contextValue}>
+      <Page />
+    </AuthContext.Provider>
+  );
+}
+```
+
+根据以上改变，即使 `MyApp` 需要重新渲染，调用 `useContext(AuthContext)` 的组件也不需要重新渲染，除非 `currentUser` 发生了变化。
