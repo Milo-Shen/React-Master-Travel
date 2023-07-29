@@ -244,3 +244,415 @@ export default function Counter() {
   );
 }
 ```
+
+### 更新状态中的对象和数组
+你可以将对象和数组放入状态中。在 React 中，状态被认为是只读的，因此 你应该替换它而不是改变现有对象。例如，如果你在状态中保存了一个 `form` 对象，请不要改变它：
+
+```jsx
+// 🚩 不要像下面这样改变一个对象：
+form.firstName = 'Taylor';
+```
+
+相反，可以通过创建一个新对象来替换整个对象：
+
+```jsx
+// ✅ 使用新对象替换 state
+setForm({
+  ...form,
+  firstName: 'Taylor'
+});
+```
+
+阅读有关 更新状态中的对象 和 更新状态中的数组 来了解更多。
+
+### 状态中的对象和数组的示例
+
+#### 第 1 个示例 共 4 个挑战: 表单（对象）
+在此示例中，`form` 状态变量保存一个对象。每个输入框都有一个变更处理函数，用整个表单的下一个状态调用 `setForm。{ ...form }` 展开语法确保替换状态对象而不是改变它。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+
+export default function Form() {
+  const [form, setForm] = useState({
+    firstName: 'Barbara',
+    lastName: 'Hepworth',
+    email: 'bhepworth@sculpture.com',
+  });
+
+  return (
+    <>
+      <label>
+        First name:
+        <input
+          value={form.firstName}
+          onChange={e => {
+            setForm({
+              ...form,
+              firstName: e.target.value
+            });
+          }}
+        />
+      </label>
+      <label>
+        Last name:
+        <input
+          value={form.lastName}
+          onChange={e => {
+            setForm({
+              ...form,
+              lastName: e.target.value
+            });
+          }}
+        />
+      </label>
+      <label>
+        Email:
+        <input
+          value={form.email}
+          onChange={e => {
+            setForm({
+              ...form,
+              email: e.target.value
+            });
+          }}
+        />
+      </label>
+      <p>
+        {form.firstName}{' '}
+        {form.lastName}{' '}
+        ({form.email})
+      </p>
+    </>
+  );
+}
+```
+
+#### 第 2 个示例 共 4 个挑战: 表单（嵌套对象）
+
+在此示例中，状态更为嵌套。当你更新嵌套状态时，你需要复制一份正在更新的对象，以及向上“包含”它的所有对象。阅读 更新嵌套对象 以了解更多。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+
+export default function Form() {
+  const [person, setPerson] = useState({
+    name: 'Niki de Saint Phalle',
+    artwork: {
+      title: 'Blue Nana',
+      city: 'Hamburg',
+      image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+    }
+  });
+
+  function handleNameChange(e) {
+    setPerson({
+      ...person,
+      name: e.target.value
+    });
+  }
+
+  function handleTitleChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        title: e.target.value
+      }
+    });
+  }
+
+  function handleCityChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        city: e.target.value
+      }
+    });
+  }
+
+  function handleImageChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        image: e.target.value
+      }
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Name:
+        <input
+          value={person.name}
+          onChange={handleNameChange}
+        />
+      </label>
+      <label>
+        Title:
+        <input
+          value={person.artwork.title}
+          onChange={handleTitleChange}
+        />
+      </label>
+      <label>
+        City:
+        <input
+          value={person.artwork.city}
+          onChange={handleCityChange}
+        />
+      </label>
+      <label>
+        Image:
+        <input
+          value={person.artwork.image}
+          onChange={handleImageChange}
+        />
+      </label>
+      <p>
+        <i>{person.artwork.title}</i>
+        {' by '}
+        {person.name}
+        <br />
+        (located in {person.artwork.city})
+      </p>
+      <img 
+        src={person.artwork.image} 
+        alt={person.artwork.title}
+      />
+    </>
+  );
+}
+```
+
+#### 第 3 个示例 共 4 个挑战: 列表（数组）
+在本例中，`todos` 状态变量保存一个数组。每个按钮的处理函数使用该数组的下一个版本调用 `setTodos。[...todos]` 展开语法，`todos.map()` 和 `todos.filter()` 确保状态数组被替换而不是改变。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+import AddTodo from './AddTodo.js';
+import TaskList from './TaskList.js';
+
+let nextId = 3;
+const initialTodos = [
+  { id: 0, title: 'Buy milk', done: true },
+  { id: 1, title: 'Eat tacos', done: false },
+  { id: 2, title: 'Brew tea', done: false },
+];
+
+export default function TaskApp() {
+  const [todos, setTodos] = useState(initialTodos);
+
+  function handleAddTodo(title) {
+    setTodos([
+      ...todos,
+      {
+        id: nextId++,
+        title: title,
+        done: false
+      }
+    ]);
+  }
+
+  function handleChangeTodo(nextTodo) {
+    setTodos(todos.map(t => {
+      if (t.id === nextTodo.id) {
+        return nextTodo;
+      } else {
+        return t;
+      }
+    }));
+  }
+
+  function handleDeleteTodo(todoId) {
+    setTodos(
+      todos.filter(t => t.id !== todoId)
+    );
+  }
+
+  return (
+    <>
+      <AddTodo
+        onAddTodo={handleAddTodo}
+      />
+      <TaskList
+        todos={todos}
+        onChangeTodo={handleChangeTodo}
+        onDeleteTodo={handleDeleteTodo}
+      />
+    </>
+  );
+}
+```
+
+##### AddTodo.js
+
+```jsx
+import { useState } from 'react';
+
+export default function AddTodo({ onAddTodo }) {
+    const [title, setTitle] = useState('');
+    return (
+        <>
+            <input
+                placeholder="Add todo"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+            />
+            <button onClick={() => {
+                setTitle('');
+                onAddTodo(title);
+            }}>Add</button>
+        </>
+    )
+}
+```
+
+##### TaskList.js
+
+```jsx
+import { useState } from 'react';
+
+export default function TaskList({
+  todos,
+  onChangeTodo,
+  onDeleteTodo
+}) {
+  return (
+    <ul>
+      {todos.map(todo => (
+        <li key={todo.id}>
+          <Task
+            todo={todo}
+            onChange={onChangeTodo}
+            onDelete={onDeleteTodo}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ todo, onChange, onDelete }) {
+  const [isEditing, setIsEditing] = useState(false);
+  let todoContent;
+  if (isEditing) {
+    todoContent = (
+      <>
+        <input
+          value={todo.title}
+          onChange={e => {
+            onChange({
+              ...todo,
+              title: e.target.value
+            });
+          }} />
+        <button onClick={() => setIsEditing(false)}>
+          Save
+        </button>
+      </>
+    );
+  } else {
+    todoContent = (
+      <>
+        {todo.title}
+        <button onClick={() => setIsEditing(true)}>
+          Edit
+        </button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={todo.done}
+        onChange={e => {
+          onChange({
+            ...todo,
+            done: e.target.checked
+          });
+        }}
+      />
+      {todoContent}
+      <button onClick={() => onDelete(todo.id)}>
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+#### 用 Immer 编写简洁的更新逻辑
+
+如果不能直接改变数组和对象来进行更新感觉很烦琐，你可以使用像 `Immer` 这样的库来减少重复的代码。`Immer` 可以让你编写简洁的代码，就像你可以直接改变对象一样，但在底层它执行的是不改变的更新：
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+import { useImmer } from 'use-immer';
+
+let nextId = 3;
+const initialList = [
+  { id: 0, title: 'Big Bellies', seen: false },
+  { id: 1, title: 'Lunar Landscape', seen: false },
+  { id: 2, title: 'Terracotta Army', seen: true },
+];
+
+export default function BucketList() {
+  const [list, updateList] = useImmer(initialList);
+
+  function handleToggle(artworkId, nextSeen) {
+    updateList(draft => {
+      const artwork = draft.find(a =>
+        a.id === artworkId
+      );
+      artwork.seen = nextSeen;
+    });
+  }
+
+  return (
+    <>
+      <h1>Art Bucket List</h1>
+      <h2>My list of art to see:</h2>
+      <ItemList
+        artworks={list}
+        onToggle={handleToggle} />
+    </>
+  );
+}
+
+function ItemList({ artworks, onToggle }) {
+  return (
+    <ul>
+      {artworks.map(artwork => (
+        <li key={artwork.id}>
+          <label>
+            <input
+              type="checkbox"
+              checked={artwork.seen}
+              onChange={e => {
+                onToggle(
+                  artwork.id,
+                  e.target.checked
+                );
+              }}
+            />
+            {artwork.title}
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
