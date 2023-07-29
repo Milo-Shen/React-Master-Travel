@@ -23,6 +23,9 @@ function MyComponent() {
     
     // react 会调用，后方的回调函数
     const [todos, setTodos] = useState(() => createTodos());
+    
+    // 这里写成 createTodos 效果也是一样的
+    const [_todos, _setTodos] = useState(createTodos);
     // ...
 }
 ```
@@ -829,3 +832,194 @@ function Form() {
 3. 如果可以的话，在事件处理函数中更新所有相关状态。
 
 在极为罕见的情况下，如果上述方法都不适用，你还可以使用一种方式，在组件渲染时调用 `set` 函数来基于已经渲染的值更新状态。
+
+这里是一个例子。这个 `CountLabel` 组件显示传递给它的 `count` props：
+
+```jsx
+export default function CountLabel({ count }) {
+  return <h1>{count}</h1>
+}
+```
+
+假设你想显示计数器是否自上次更改以来 增加或减少。`count` props 无法告诉你这一点——你需要跟踪它的先前值。添加 `prevCount` 状态变量来跟踪它，再添加另一个状态变量 `trend` 来保存计数是否增加或减少。比较 `prevCount` 和 `count`，如果它们不相等，则更新 `prevCount` 和 `trend`。现在你既可以显示当前的 `count` props，也可以显示 自上次渲染以来它如何改变。
+
+##### App.js
+
+```jsx
+import { useState } from 'react';
+import CountLabel from './CountLabel.js';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+  return (
+    <>
+      <button onClick={() => setCount(count + 1)}>
+        Increment
+      </button>
+      <button onClick={() => setCount(count - 1)}>
+        Decrement
+      </button>
+      <CountLabel count={count} />
+    </>
+  );
+}
+```
+
+##### CountLabel.js
+
+```jsx
+import { useState } from 'react';
+
+export default function CountLabel({ count }) {
+  const [prevCount, setPrevCount] = useState(count);
+  const [trend, setTrend] = useState(null);
+  if (prevCount !== count) {
+    setPrevCount(count);
+    setTrend(count > prevCount ? 'increasing' : 'decreasing');
+  }
+  return (
+    <>
+      <h1>{count}</h1>
+      {trend && <p>The count is {trend}</p>}
+    </>
+  );
+}
+```
+
+请注意，在渲染时调用 `set` 函数时，它必须位于条件语句中，例如 `prevCount !== count`，并且必须在该条件语句中调用 `setPrevCount(count)`。否则，你的组件将在循环中重新渲染，直到崩溃。此外，你只能像这样更新 当前渲染 组件的状态。在渲染过程中调用 另一个 组件的 `set` 函数是错误的。最后，你的 `set` 调用仍应 不直接改变 `state` 来更新 状态——这并不意味着你可以违反其他 纯函数 的规则。
+
+这种方式可能很难理解，通常最好避免使用。但是，它比在 `effect` 中更新状态要好。当你在渲染期间调用 `set` 函数时，React 将在你的组件使用 `return` 语句退出后立即重新渲染该组件，并在渲染子组件前进行。这样，子组件就不需要进行两次渲染。你的组件函数的其余部分仍会执行（然后结果将被丢弃）。如果你的条件判断在所有 Hook 调用的下方，可以提前添加一个 `return`; 以便更早地重新开始渲染。
+
+## 疑难解答
+
+### 我已经更新了状态，但日志仍显示旧值 
+
+调用 `set` 函数 不能改变运行中代码的状态：
+
+```jsx
+function handleClick() {
+  console.log(count);  // 0
+
+  setCount(count + 1); // 请求使用 1 重新渲染
+  console.log(count);  // 仍然是 0!
+
+  setTimeout(() => {
+    console.log(count); // 还是 0!
+  }, 5000);
+}
+```
+
+这是因为 状态表现为就像一个快照。更新状态会使用新的状态值请求另一个渲染，但并不影响在你已经运行的事件处理函数中的 `count` JavaScript 变量。
+
+如果你需要使用下一个状态，你可以在将其传递给 `set` 函数之前将其保存在一个变量中：
+
+```jsx
+const nextCount = count + 1;
+setCount(nextCount);
+
+console.log(count);     // 0
+console.log(nextCount); // 1
+```
+
+### 我已经更新了状态，但是屏幕没有更新 
+如果下一个状态等于先前的状态，React 将忽略你的更新，这是由 `Object.is` 比较确定的。这通常发生在你直接更改状态中的对象或数组时：
+
+```jsx
+obj.x = 10;  // 🚩 错误：直接修改现有的对象
+setObj(obj); // 🚩 不会发生任何事情
+```
+
+你修改了一个现有的 `obj` 对象并将其传递回 `setObj`，因此 React 忽略了更新。为了解决这个问题，你需要确保始终在状态中 替换 对象和数组，而不是对它们进行 更改：
+
+```jsx
+// ✅ 正确：创建一个新对象
+setObj({
+  ...obj,
+  x: 10
+});
+```
+
+### 出现错误：“Too many re-renders” 
+
+有时可能会出现错误：“Too many re-renders”。React 会限制渲染次数，以防止进入无限循环。通常，这意味着 在渲染期间 无条件地设置状态，因此组件进入循环：渲染、设置状态（导致重新渲染）、渲染、设置状态（导致重新渲染）等等。通常，这是由错误地指定事件处理函数时引起的：
+
+```jsx
+// 🚩 错误：在渲染过程中调用事件处理函数
+return <button onClick={handleClick()}>Click me</button>
+
+// ✅ 正确：将事件处理函数传递下去
+return <button onClick={handleClick}>Click me</button>
+
+// ✅ 正确：传递一个内联函数
+return <button onClick={(e) => handleClick(e)}>Click me</button>
+```
+
+如果找不到这个错误的原因，请单击控制台中错误旁边的箭头，查看 JavaScript 堆栈以找到导致错误的具体 `set` 函数调用。
+
+### 初始化函数或更新函数运行了两次 
+
+```jsx
+function TodoList() {
+    // 该函数组件会在每次渲染运行两次。
+
+    const [todos, setTodos] = useState(() => {
+        // 该初始化函数在初始化期间会运行两次。
+        return createTodos();
+    });
+
+    function handleClick() {
+        setTodos(prevTodos => {
+            // 该更新函数在每次点击中都会运行两次
+            return [...prevTodos, createTodo()];
+        });
+    }
+
+    // ...
+}
+```
+
+这是所期望的，且不应该破坏你的代码。
+
+这种 仅在开发环境下生效 的行为有助于 保持组件的纯粹性。React 使用其中一个调用的结果，而忽略另一个调用的结果。只要你的组件、初始化函数和更新函数是纯粹的，就不会影响你的逻辑。但是，如果它们意外地不纯粹，这将帮助你注意到错误。
+
+例如，这个不纯的更新函数改变了 `state` 中的一个数组：
+
+```jsx
+setTodos(prevTodos => {
+  // 🚩 错误：改变 state
+  prevTodos.push(createTodo());
+});
+```
+
+因为 React 调用了两次更新函数，所以你将看到 todo 被添加了两次，所以你将知道出现了错误。在这个例子中，你可以通过 替换数组而不是更改数组 来修复这个错误：
+
+```jsx
+setTodos(prevTodos => {
+  // ✅ 正确：使用新状态替换
+  return [...prevTodos, createTodo()];
+});
+```
+
+现在，这个更新函数是纯粹的，所以多调用一次不会对行为产生影响。这就是为什么 React 调用它两次可以帮助你找到错误的原因。只有组件、初始化函数和更新函数需要是纯粹的。事件处理函数不需要是纯粹的，所以 React 不会两次调用你的事件处理函数。
+
+### 我尝试将 state 设置为一个函数，但它却被调用了 
+
+你不能像这样把函数放入状态：
+
+```jsx
+const [fn, setFn] = useState(someFunction);
+
+function handleClick() {
+  setFn(someOtherFunction);
+}
+```
+
+因为你传递了一个函数，React 认为 `someFunction` 是一个 初始化函数，而 `someOtherFunction` 是一个 更新函数，于是它尝试调用它们并存储结果。要实际 存储 一个函数，你必须在两种情况下在它们之前加上 `() =>`。然后 React 将存储你传递的函数。
+
+```jsx
+const [fn, setFn] = useState(() => someFunction);
+
+function handleClick() {
+  setFn(() => someOtherFunction);
+}
+```
