@@ -113,3 +113,150 @@ function Button({ children }) {
 }
 ```
 
+### 通过 context 更新传递的数据 
+通常，你会希望 `context` 随着时间的推移而改变。要更新 `context`，请将其与 `state` 结合。在父组件中声明一个状态变量，并将当前状态作为 `context value` 传递给 `provider`。
+
+```jsx
+function MyPage() {
+  const [theme, setTheme] = useState('dark');
+  return (
+    <ThemeContext.Provider value={theme}>
+      <Form />
+      <Button onClick={() => {
+        setTheme('light');
+      }}>
+       Switch to light theme
+      </Button>
+    </ThemeContext.Provider>
+  );
+}
+```
+
+现在 `provider` 中的任何一个 `Button` 都会接收到当前的 `theme` 值。如果调用 `setTheme` 来更新传递给 `provider` 的 `theme` 值，则所有 `Button` 组件都将使用新的值 `'light'` 来重新渲染。
+
+### 更新 context 的例子
+
+#### 第 1 个示例 共 5 个挑战: 通过 context 来更新数据
+在这个示例中，`MyApp` 组件包含一个状态变量，然后该变量被传递给 `ThemeContext provider`。选中 `“Dark mode”` 复选框更新状态。更改提供的值将重新渲染使用该 `context` 的所有组件。
+
+```jsx
+import { createContext, useContext, useState } from 'react';
+
+const ThemeContext = createContext(null);
+
+export default function MyApp() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <ThemeContext.Provider value={theme}>
+      <Form />
+      <label>
+        <input
+          type="checkbox"
+          checked={theme === 'dark'}
+          onChange={(e) => {
+            setTheme(e.target.checked ? 'dark' : 'light')
+          }}
+        />
+        Use dark mode
+      </label>
+    </ThemeContext.Provider>
+  )
+}
+
+function Form({ children }) {
+  return (
+    <Panel title="Welcome">
+      <Button>Sign up</Button>
+      <Button>Log in</Button>
+    </Panel>
+  );
+}
+
+function Panel({ title, children }) {
+  const theme = useContext(ThemeContext);
+  const className = 'panel-' + theme;
+  return (
+    <section className={className}>
+      <h1>{title}</h1>
+      {children}
+    </section>
+  )
+}
+
+function Button({ children }) {
+  const theme = useContext(ThemeContext);
+  const className = 'button-' + theme;
+  return (
+    <button className={className}>
+      {children}
+    </button>
+  );
+}
+```
+
+#### 第 2 个示例 共 5 个挑战: 通过 context 更新对象
+在这个例子中，有一个 `currentUser` 状态变量，它包含一个对象。将 `{ currentUser, setCurrentUser }` 组合成一个对象，并通过 `context` 在 `value={}` 中向下传递。这允许下面的任何组件，如 `LoginButton`，同时读取 `currentUser` 和 `setCurrentUser`，然后在需要时调用 `setCurrentUser`。
+
+```jsx
+import { createContext, useContext, useState } from 'react';
+
+const CurrentUserContext = createContext(null);
+
+export default function MyApp() {
+  const [currentUser, setCurrentUser] = useState(null);
+  return (
+    <CurrentUserContext.Provider
+      value={{
+        currentUser,
+        setCurrentUser
+      }}
+    >
+      <Form />
+    </CurrentUserContext.Provider>
+  );
+}
+
+function Form({ children }) {
+  return (
+    <Panel title="Welcome">
+      <LoginButton />
+    </Panel>
+  );
+}
+
+function LoginButton() {
+  const {
+    currentUser,
+    setCurrentUser
+  } = useContext(CurrentUserContext);
+
+  if (currentUser !== null) {
+    return <p>You logged in as {currentUser.name}.</p>;
+  }
+
+  return (
+    <Button onClick={() => {
+      setCurrentUser({ name: 'Advika' })
+    }}>Log in as Advika</Button>
+  );
+}
+
+function Panel({ title, children }) {
+  return (
+    <section className="panel">
+      <h1>{title}</h1>
+      {children}
+    </section>
+  )
+}
+
+function Button({ children, onClick }) {
+  return (
+    <button className="button" onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+```
+
+### 指定回退默认值 
