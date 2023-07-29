@@ -260,3 +260,72 @@ function Button({ children, onClick }) {
 ```
 
 ### 指定回退默认值 
+如果 React 没有在父树中找到该特定 `context` 的任何 `provider`，`useContext()` 返回的 `context` 值将等于你在 创建 `context` 时指定的 默认值：
+
+```jsx
+const ThemeContext = createContext(null);
+```
+
+默认值 从不改变。如果你想要更新 `context`，请按 上述方式 将其与状态一起使用。
+
+通常，除了 `null`，还有一些更有意义的值可以用作默认值，例如：
+
+```jsx
+const ThemeContext = createContext('light');
+```
+
+这样，如果你不小心渲染了没有相应 `provider` 的某个组件，它也不会出错。这也有助于你的组件在测试环境中很好地运行，而无需在测试中设置许多 `provider`。
+
+在下面的例子中，`“Toggle theme”` 按钮总是处于 `light` 状态，因为它位于 任何主题的 `context provider` 之外，且 `context` 主题的默认值是 `'light'`。试着编辑默认主题为 `'dark'`。
+
+```jsx
+import { createContext, useContext, useState } from 'react';
+
+const ThemeContext = createContext('light');
+
+export default function MyApp() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <>
+      <ThemeContext.Provider value={theme}>
+        <Form />
+      </ThemeContext.Provider>
+      <Button onClick={() => {
+        setTheme(theme === 'dark' ? 'light' : 'dark');
+      }}>
+        Toggle theme
+      </Button>
+    </>
+  )
+}
+
+function Form({ children }) {
+  return (
+    <Panel title="Welcome">
+      <Button>Sign up</Button>
+      <Button>Log in</Button>
+    </Panel>
+  );
+}
+
+function Panel({ title, children }) {
+  const theme = useContext(ThemeContext);
+  const className = 'panel-' + theme;
+  return (
+    <section className={className}>
+      <h1>{title}</h1>
+      {children}
+    </section>
+  )
+}
+
+function Button({ children, onClick }) {
+  const theme = useContext(ThemeContext);
+  const className = 'button-' + theme;
+  return (
+    <button className={className} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+```
