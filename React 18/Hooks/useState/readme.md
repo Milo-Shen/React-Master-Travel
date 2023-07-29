@@ -656,3 +656,165 @@ function ItemList({ artworks, onToggle }) {
   );
 }
 ```
+
+### 避免重复创建初始状态 
+
+React 只在初次渲染时保存初始状态，后续渲染时将其忽略。
+
+```jsx
+function TodoList() {
+    const [todos, setTodos] = useState(createInitialTodos());
+    // ...
+}
+```
+
+尽管 `createInitialTodos()` 的结果仅用于初始渲染，但你仍然在每次渲染时调用此函数。如果它创建大数组或执行昂贵的计算，这可能会浪费资源。
+
+为了解决这个问题，你可以将它 作为初始化函数传递给 `useState`：
+
+```jsx
+function TodoList() {
+    const [todos, setTodos] = useState(createInitialTodos);
+    // ...
+}
+```
+
+请注意，你传递的是 `createInitialTodos` 函数本身，而不是 `createInitialTodos()` 调用该函数的结果。如果将函数传递给 `useState`，React 仅在初始化期间调用它。
+
+React 在开发模式下可能会调用你的 初始化函数 两次，以验证它们是否是 纯函数。
+
+### 传递初始化函数和直接传递初始状态之间的区别
+
+#### 传递初始化函数 
+
+这个例子传递了初始化函数，因此 `createInitialTodos` 函数仅在初始化期间运行。当组件重新渲染，例如你在输入框中键入内容时，它不会再次运行。
+
+```jsx
+import { useState } from 'react';
+
+function createInitialTodos() {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: 'Item ' + (i + 1)
+    });
+  }
+  return initialTodos;
+}
+
+export default function TodoList() {
+  const [todos, setTodos] = useState(createInitialTodos);
+  const [text, setText] = useState('');
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button onClick={() => {
+        setText('');
+        setTodos([{
+          id: todos.length,
+          text: text
+        }, ...todos]);
+      }}>Add</button>
+      <ul>
+        {todos.map(item => (
+          <li key={item.id}>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+#### 直接传递初始状态
+
+这个例子 没有 传递初始化函数，因此 `createInitialTodos` 函数会在每次渲染时运行，比如当你在输入框中输入时。这种行为没有什么明显的差异，但这种代码是不那么高效的。
+
+```jsx
+import { useState } from 'react';
+
+function createInitialTodos() {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: 'Item ' + (i + 1)
+    });
+  }
+  return initialTodos;
+}
+
+export default function TodoList() {
+  const [todos, setTodos] = useState(createInitialTodos());
+  const [text, setText] = useState('');
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button onClick={() => {
+        setText('');
+        setTodos([{
+          id: todos.length,
+          text: text
+        }, ...todos]);
+      }}>Add</button>
+      <ul>
+        {todos.map(item => (
+          <li key={item.id}>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+### 使用 key 重置状态 
+
+在 渲染列表 时，你经常会遇到 `key` 属性。然而，它还有另外一个用途。
+
+你可以 通过向组件传递不同的 `key` 来重置组件的状态。在这个例子中，重置按钮改变 `version` 状态变量，我们将它作为一个 `key` 传递给 `Form` 组件。当 `key` 改变时，React 会从头开始重新创建 `Form` 组件（以及它的所有子组件），所以它的状态被重置了。
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [version, setVersion] = useState(0);
+
+  function handleReset() {
+    setVersion(version + 1);
+  }
+
+  return (
+    <>
+      <button onClick={handleReset}>Reset</button>
+      <Form key={version} />
+    </>
+  );
+}
+
+function Form() {
+  const [name, setName] = useState('Taylor');
+
+  return (
+    <>
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+      />
+      <p>Hello, {name}.</p>
+    </>
+  );
+}
+```
+
