@@ -753,3 +753,125 @@ export class MapWidget {
   }
 }
 ```
+
+在本例中，不需要 `cleanup` 函数，因为 `MapWidget` 类只管理传递给它的 DOM 节点。从树中删除 `Map` React 组件后，DOM 节点和 `MapWidget` 类实例都将被浏览器的 JavaScript 引擎的垃圾回收机制自动处理掉。
+
+### 使用 Effect 请求数据 
+你可以使用 Effect 来为组件请求数据。请注意，如果你使用框架，使用框架的数据请求方式将比在 Effect 中手动编写要有效得多。
+
+如果你想手动从 Effect 中请求数据，你的代码可能是这样的：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { fetchBio } from './api.js';
+
+export default function Page() {
+    const [person, setPerson] = useState('Alice');
+    const [bio, setBio] = useState(null);
+
+    useEffect(() => {
+        let ignore = false;
+        setBio(null);
+        fetchBio(person).then(result => {
+            if (!ignore) {
+                setBio(result);
+            }
+        });
+        return () => {
+            ignore = true;
+        };
+    }, [person]);
+
+    // ...
+}
+```
+
+注意，`ignore` 变量被初始化为 `false`，并且在 `cleanup` 中被设置为 `true`。这样可以确保 你的代码不会受到“竞争条件”的影响：网络响应可能会以与你发送的不同的顺序到达。
+
+```jsx
+import { useState, useEffect } from 'react';
+import { fetchBio } from './api.js';
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState(null);
+  
+  useEffect(() => {
+    let ignore = false;
+    setBio(null);
+    fetchBio(person).then(result => {
+      if (!ignore) {
+        setBio(result);
+      }
+    });
+    return () => {
+      ignore = true;
+    }
+  }, [person]);
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+        setPerson(e.target.value);
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="Taylor">Taylor</option>
+      </select>
+      <hr />
+      <p><i>{bio ?? 'Loading...'}</i></p>
+    </>
+  );
+}
+```
+
+你也可以使用 `async` / `await` 语法重写，但是你仍然需要提供一个 `cleanup` 函数：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { fetchBio } from './api.js';
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState(null);
+  
+  useEffect(() => {
+    async function startFetching() {
+      setBio(null);
+      const result = await fetchBio(person);
+      if (!ignore) {
+        setBio(result);
+      }
+    }
+
+    let ignore = false;
+    startFetching();
+    return () => {
+      ignore = true;
+    }
+  }, [person]);
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+        setPerson(e.target.value);
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="Taylor">Taylor</option>
+      </select>
+      <hr />
+      <p><i>{bio ?? 'Loading...'}</i></p>
+    </>
+  );
+}
+```
+
+直接在 Effect 中编写数据请求会显得重复，并且很难在以后添加缓存和服务端渲染等优化。使用自定义 Hook 更简单——不管是你自己的 Hook 还是由社区维护的 Hook。
+
+### Effect 中的数据请求有什么好的替代方法 
+在 Effect 中使用 `fetch` 是 请求数据的一种流行方式，特别是在完全的客户端应用程序中。然而，这是一种非常手动的方法，而且有很大的缺点：
+1. *Effect 不在服务器上运行*。这意味着初始服务器渲染的 HTML 将只包含没有数据的 loading 状态。客户端电脑仅为了发现它现在需要加载数据，将不得不下载所有的脚本来渲染你的应用程序。这并不高效。
+2. *在 Effect 中直接请求数据很容易导致“网络瀑布”*。当你渲染父组件时，它会请求一些数据，再渲染子组件，然后重复这样的过程来请求子组件的数据。如果网络不是很快，这将比并行请求所有数据要慢得多。
+3. *在 Effect 中直接请求数据通常意味着你不会预加载或缓存数据*。例如，如果组件卸载后重新挂载，它不得不再次请求数据。
+4. *这不符合工效学*。在调用 fetch 时，需要编写大量样板代码，以避免像 竞争条件 这样的 bug。
