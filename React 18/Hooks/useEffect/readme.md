@@ -304,3 +304,54 @@ export class FadeInAnimation {
   }
 }
 ```
+
+#### 第 4 个示例 共 5 个挑战: 控制模态对话框
+在这个例子中，外部系统是浏览器 DOM。`ModalDialog` 组件渲染一个 `<dialog>` 元素。它使用 `Effect` 将 `isOpen` prop 同步到 `showModal()` 和 `close()` 方法调用。
+
+##### App.js
+```jsx
+import { useState } from 'react';
+import ModalDialog from './ModalDialog.js';
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(true)}>
+        Open dialog
+      </button>
+      <ModalDialog isOpen={show}>
+        Hello there!
+        <br />
+        <button onClick={() => {
+          setShow(false);
+        }}>Close</button>
+      </ModalDialog>
+    </>
+  );
+}
+```
+
+##### ModalDialog.js
+
+```jsx
+import { useEffect, useRef } from 'react';
+
+export default function ModalDialog({ isOpen, children }) {
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const dialog = ref.current;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+    };
+  }, [isOpen]);
+
+  return <dialog ref={ref}>{children}</dialog>;
+}
+```
+
