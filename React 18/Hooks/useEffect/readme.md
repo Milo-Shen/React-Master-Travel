@@ -673,3 +673,83 @@ export function useIntersectionObserver(ref) {
   return isIntersecting;
 }
 ```
+
+### 控制非 React 小部件 
+有时，你希望外部系统与你组件的某些 `props` 或 `state` 保持同步。
+
+例如，如果你有一个没有使用 React 编写的第三方地图小部件或视频播放器组件，你可以使用 Effect 调用该组件上的方法，使其状态与 React 组件的当前状态相匹配。此 Effect 创建了在 `map-widget.js` 中定义的 `MapWidget` 类的实例。当你更改 `Map` 组件的 `zoomLevel` prop 时，`Effect` 调用类实例上的 `setZoom()` 来保持同步：
+
+##### App.js
+```jsx
+import { useState } from 'react';
+import Map from './Map.js';
+
+export default function App() {
+  const [zoomLevel, setZoomLevel] = useState(0);
+  return (
+    <>
+      Zoom level: {zoomLevel}x
+      <button onClick={() => setZoomLevel(zoomLevel + 1)}>+</button>
+      <button onClick={() => setZoomLevel(zoomLevel - 1)}>-</button>
+      <hr />
+      <Map zoomLevel={zoomLevel} />
+    </>
+  );
+}
+```
+
+##### Map.js
+```jsx
+import { useRef, useEffect } from 'react';
+import { MapWidget } from './map-widget.js';
+
+export default function Map({ zoomLevel }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    if (mapRef.current === null) {
+      mapRef.current = new MapWidget(containerRef.current);
+    }
+
+    const map = mapRef.current;
+    map.setZoom(zoomLevel);
+  }, [zoomLevel]);
+
+  return (
+    <div
+      style={{ width: 200, height: 200 }}
+      ref={containerRef}
+    />
+  );
+}
+```
+
+##### map-widget.js
+```jsx
+import 'leaflet/dist/leaflet.css';
+import * as L from 'leaflet';
+
+export class MapWidget {
+  constructor(domNode) {
+    this.map = L.map(domNode, {
+      zoomControl: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      scrollWheelZoom: false,
+      zoomAnimation: false,
+      touchZoom: false,
+      zoomSnap: 0.1
+    });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(this.map);
+    this.map.setView([0, 0], 0);
+  }
+  setZoom(level) {
+    this.map.setZoom(level);
+  }
+}
+```
