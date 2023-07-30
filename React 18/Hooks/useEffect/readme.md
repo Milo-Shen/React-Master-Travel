@@ -355,3 +355,69 @@ export default function ModalDialog({ isOpen, children }) {
 }
 ```
 
+#### 第 5 个示例 共 5 个挑战: 跟踪元素可见性 
+在这个例子中，外部系统仍然是浏览器 DOM。`App` 组件展示一个长列表，然后是 `Box` 组件，然后是另一个长列表。试试向下滚动列表。请注意，当 `Box` 组件出现在视野中时，背景色会变成黑色。为了实现这一点，`Box` 组件使用 `Effect` 来管理 `IntersectionObserver`。这个浏览器 API 会在视野中出现指定 DOM 元素时通知你。
+
+##### App.js
+```jsx
+import Box from './Box.js';
+
+export default function App() {
+  return (
+    <>
+      <LongSection />
+      <Box />
+      <LongSection />
+      <Box />
+      <LongSection />
+    </>
+  );
+}
+
+function LongSection() {
+  const items = [];
+  for (let i = 0; i < 50; i++) {
+    items.push(<li key={i}>Item #{i} (keep scrolling)</li>);
+  }
+  return <ul>{items}</ul>
+}
+```
+
+##### Box.js
+```jsx
+import { useRef, useEffect } from 'react';
+
+export default function Box() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const div = ref.current;
+    const observer = new IntersectionObserver(entries => {
+      const entry = entries[0];
+      if (entry.isIntersecting) {
+        document.body.style.backgroundColor = 'black';
+        document.body.style.color = 'white';
+      } else {
+        document.body.style.backgroundColor = 'white';
+        document.body.style.color = 'black';
+      }
+    });
+    observer.observe(div, {
+      threshold: 1.0
+    });
+    return () => {
+      observer.disconnect();
+    }
+  }, []);
+
+  return (
+    <div ref={ref} style={{
+      margin: 20,
+      height: 100,
+      width: 100,
+      border: '2px solid black',
+      backgroundColor: 'blue'
+    }} />
+  );
+}
+```
