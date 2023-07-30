@@ -1334,4 +1334,102 @@ export function createConnection({ serverUrl, roomId }) {
 
 现在你已经在 Effect 内部创建了 `options` 对象，因此 Effect 仅依赖于 `roomId` 字符串。
 
-通过此修复，在输入框中输入不会导致重新连接到聊天室。与会被重新创建的对象不同，像 roomId 这样的字符串只有在被设置为其它值时才会更改。阅读有关删除依赖项的更多信息。
+通过此修复，在输入框中输入不会导致重新连接到聊天室。与会被重新创建的对象不同，像 `roomId` 这样的字符串只有在被设置为其它值时才会更改。阅读有关删除依赖项的更多信息。
+
+### 删除不必要的函数依赖项 
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    function createOptions() { // 🚩 此函数在每次重新渲染都从头开始创建
+        return {
+            serverUrl: serverUrl,
+            roomId: roomId
+        };
+    }
+
+    useEffect(() => {
+        const options = createOptions(); // 它在 Effect 中被使用
+        const connection = createConnection();
+        connection.connect();
+        return () => connection.disconnect();
+    }, [createOptions]); // 🚩 因此，此依赖项在每次重新渲染都是不同的
+    // ...
+}
+```
+
+就其本身而言，在每次重新渲染时从头新建一个函数不是问题。你不需要优化它。但是，如果你将其用作 Effect 的依赖项，则会导致 Effect 在每次重新渲染后重新运行。
+
+避免使用在渲染期间创建的函数作为依赖项，请在 Effect 内部声明它：
+
+##### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    function createOptions() {
+      return {
+        serverUrl: serverUrl,
+        roomId: roomId
+      };
+    }
+
+    const options = createOptions();
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+##### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现将实际连接到服务器
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+现在你在 Effect 内部定义了 `createOptions` 函数，这样 Effect 本身只依赖于 `roomId` 字符串。通过此修复，输入框的输入不会重新连接聊天室。与被重新创建的函数不同，像 `roomId` 这样的字符串除非你将其设置为其它值，否则它不会改变。了解更多有关移除依赖项的信息。
