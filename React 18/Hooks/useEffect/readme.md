@@ -1552,3 +1552,33 @@ Object.is(temp1[2], temp2[2]); // ... 以此类推检查每个依赖项 ...
 如果你真的正在与某个外部系统同步，请考虑为什么以及在何种条件下你的 Effect 函数应该更新状态。是否有任何变化会影响组件的可视输出？如果你需要跟踪一些不用于渲染的数据，使用一个 ref（它不会触发重新渲染）可能更合适。验证你的 Effect 函数不会超过需要地更新状态（并触发重新渲染）。
 
 最后，如果你的 Effect 函数在正确的时机更新了状态，但仍然存在一个循环，那是因为该状态更新导致 Effect 的一个依赖项发生了更改。阅读如何调试依赖项变更。
+
+### 即使组件没有卸载，cleanup 逻辑也会运行 
+`cleanup` 函数不仅在卸载期间运行，也在每个依赖项变更的重新渲染前运行。此外，在开发环境中，React 在组件挂载后会立即额外运行一次 `setup` + `cleanup`。
+
+如果你的 cleanup 代码没有相应的 setup 代码，这通常是一种代码异味（code smell）：
+
+```jsx
+useEffect(() => {
+  // 🔴 避免：cleanup 逻辑没有相应的 setup 逻辑
+  return () => {
+    doSomething();
+  };
+}, []);
+```
+
+你的 cleanup 逻辑应该与 setup 逻辑“对称”，并且应该停止或撤销任何 setup 做的事情：
+
+```jsx
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [serverUrl, roomId]);
+```
+
+### 我的 Effect 做了一些视觉相关的事情，在它运行之前我看到了一个闪烁 
+如果 Effect 一定要阻止浏览器绘制屏幕，使用 `useLayoutEffect` 替换 `useEffect`。请注意，绝大多数的 Effect 都不需要这样。只有当在浏览器绘制之前运行 Effect 非常重要的时候才需要如此：例如，在用户看到 `tooltip` 之前测量并定位它。
+
