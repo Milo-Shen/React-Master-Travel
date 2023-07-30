@@ -1241,3 +1241,97 @@ export default function Counter() {
 
 现在，你传递的是 `c => c + 1` 而不是 `count + 1`，因此 Effect 不再需要依赖于 `count`。由于这个修复，每次 `count` 更改时，它都不需要清理（cleanup）和设置（setup）间隔定时器。
 
+### 删除不必要的对象依赖项 
+
+如果你的 Effect 依赖于在渲染期间创建的对象或函数，则它可能会频繁运行。例如，此 Effect 在每次渲染后都重新连接，因为 `options` 对象 *每次渲染都不同*：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    const options = { // 🚩 这个对象在每次渲染时都是从头创建的
+        serverUrl: serverUrl,
+        roomId: roomId
+    };
+
+    useEffect(() => {
+        const connection = createConnection(options); // 它在 Effect 内部使用
+        connection.connect();
+        return () => connection.disconnect();
+    }, [options]); // 🚩 因此，这些依赖在重新渲染时总是不同的
+    // ...
+}
+```
+
+避免使用渲染期间创建的对象作为依赖项。相反，在 Effect 内部创建对象：
+
+##### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+##### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现将实际连接到服务器
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+现在你已经在 Effect 内部创建了 `options` 对象，因此 Effect 仅依赖于 `roomId` 字符串。
+
+通过此修复，在输入框中输入不会导致重新连接到聊天室。与会被重新创建的对象不同，像 roomId 这样的字符串只有在被设置为其它值时才会更改。阅读有关删除依赖项的更多信息。
