@@ -545,3 +545,131 @@ export function createConnection(serverUrl, roomId) {
 ```
 
 #### 第 2 个示例 共 3 个挑战: 定制 useWindowListener Hook 
+此示例与 前面的一个示例 相同，但是逻辑被提取到一个自定义 Hook 中。
+
+##### App.js
+```jsx
+import { useState } from 'react';
+import { useWindowListener } from './useWindowListener.js';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  useWindowListener('pointermove', (e) => {
+    setPosition({ x: e.clientX, y: e.clientY });
+  });
+
+  return (
+    <div style={{
+      position: 'absolute',
+      backgroundColor: 'pink',
+      borderRadius: '50%',
+      opacity: 0.6,
+      transform: `translate(${position.x}px, ${position.y}px)`,
+      pointerEvents: 'none',
+      left: -20,
+      top: -20,
+      width: 40,
+      height: 40,
+    }} />
+  );
+}
+```
+
+##### useWindowListener.js
+```jsx
+import { useState, useEffect } from 'react';
+
+export function useWindowListener(eventType, listener) {
+  useEffect(() => {
+    window.addEventListener(eventType, listener);
+    return () => {
+      window.removeEventListener(eventType, listener);
+    };
+  }, [eventType, listener]);
+}
+```
+
+#### 第 3 个示例 共 3 个挑战: 定制 useIntersectionObserver Hook
+此示例与 前面的一个示例 相同，但是部分逻辑被提取到自定义 Hook 中。
+
+##### App.js
+```jsx
+import Box from './Box.js';
+
+export default function App() {
+  return (
+    <>
+      <LongSection />
+      <Box />
+      <LongSection />
+      <Box />
+      <LongSection />
+    </>
+  );
+}
+
+function LongSection() {
+  const items = [];
+  for (let i = 0; i < 50; i++) {
+    items.push(<li key={i}>Item #{i} (keep scrolling)</li>);
+  }
+  return <ul>{items}</ul>
+}
+```
+
+##### Box.js
+```jsx
+import { useRef, useEffect } from 'react';
+import { useIntersectionObserver } from './useIntersectionObserver.js';
+
+export default function Box() {
+  const ref = useRef(null);
+  const isIntersecting = useIntersectionObserver(ref);
+
+  useEffect(() => {
+   if (isIntersecting) {
+      document.body.style.backgroundColor = 'black';
+      document.body.style.color = 'white';
+    } else {
+      document.body.style.backgroundColor = 'white';
+      document.body.style.color = 'black';
+    }
+  }, [isIntersecting]);
+
+  return (
+    <div ref={ref} style={{
+      margin: 20,
+      height: 100,
+      width: 100,
+      border: '2px solid black',
+      backgroundColor: 'blue'
+    }} />
+  );
+}
+```
+
+##### useIntersectionObserver.js
+```jsx
+import { useState, useEffect } from 'react';
+
+export function useIntersectionObserver(ref) {
+  const [isIntersecting, setIsIntersecting] = useState(false);
+
+  useEffect(() => {
+    const div = ref.current;
+    const observer = new IntersectionObserver(entries => {
+      const entry = entries[0];
+      setIsIntersecting(entry.isIntersecting);
+    });
+    observer.observe(div, {
+      threshold: 1.0
+    });
+    return () => {
+      observer.disconnect();
+    }
+  }, [ref]);
+
+  return isIntersecting;
+}
+```
