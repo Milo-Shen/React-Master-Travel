@@ -1200,3 +1200,44 @@ export function createConnection(serverUrl, roomId) {
   };
 }
 ```
+
+### 在 Effect 中根据先前 state 更新 state 
+当你想要在 Effect 中根据先前的 state 更新 state 时，你可能会遇到问题：
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCount(count + 1); // 你想要每秒递增该计数器...
+    }, 1000)
+    return () => clearInterval(intervalId);
+  }, [count]); // 🚩 ... 但是指定 `count` 作为依赖项总是重置间隔定时器。
+  // ...
+}
+```
+
+因为 `count`  是一个响应式值，所以必须在依赖项列表中指定它。但是，这会导致 Effect 在每次 `count` 更改时再次执行 `cleanup` 和 `setup`。这并不理想。
+
+为了解决这个问题，将 `c => c + 1` 状态更新器传递给 `setCount`：
+
+```jsx
+import { useState, useEffect } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCount(c => c + 1); // ✅ 传递一个 state 更新器
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, []); // ✅ 现在 count 不是一个依赖项
+
+  return <h1>{count}</h1>;
+}
+```
+
+现在，你传递的是 `c => c + 1` 而不是 `count + 1`，因此 Effect 不再需要依赖于 `count`。由于这个修复，每次 `count` 更改时，它都不需要清理（cleanup）和设置（setup）间隔定时器。
+
