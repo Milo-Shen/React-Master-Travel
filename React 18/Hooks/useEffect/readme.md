@@ -1433,3 +1433,36 @@ export function createConnection({ serverUrl, roomId }) {
 ```
 
 现在你在 Effect 内部定义了 `createOptions` 函数，这样 Effect 本身只依赖于 `roomId` 字符串。通过此修复，输入框的输入不会重新连接聊天室。与被重新创建的函数不同，像 `roomId` 这样的字符串除非你将其设置为其它值，否则它不会改变。了解更多有关移除依赖项的信息。
+
+### 从 Effect 读取最新的 props 和 state 
+本节描述了一个 实验性的 API，它还没有在一个稳定的 React 版本中发布。
+
+默认情况下，在 Effect 中读取响应式值时，必须将其添加为依赖项。这样可以确保你的 Effect 对该值的每次更改都“作出响应”。对于大多数依赖项，这是你想要的行为。
+
+*然而，有时你想要从 Effect 中获取 最新的 props 和 state，而不“响应”它们*。例如，假设你想记录每次页面访问时购物车中的商品数量：
+
+```jsx
+function Page({ url, shoppingCart }) {
+  useEffect(() => {
+    logVisit(url, shoppingCart.length);
+  }, [url, shoppingCart]); // ✅ 所有声明的依赖项
+  // ...
+}
+```
+
+*如果你想在每次 url 更改后记录一次新的页面访问，而不是在 `shoppingCart` 更改后记录，该怎么办？*你不能在不违反 响应规则 的情况下将 `shoppingCart` 从依赖项中移除。然而，你可以表达你 不希望 某些代码对更改做出“响应”，即使它是在 Effect 内部调用的。使用 `useEffectEvent` Hook 声明 Effect 事件，并将读取 `shoppingCart` 的代码移入其中：
+
+```jsx
+function Page({ url, shoppingCart }) {
+  const onVisit = useEffectEvent(visitedUrl => {
+    logVisit(visitedUrl, shoppingCart.length)
+  });
+
+  useEffect(() => {
+    onVisit(url);
+  }, [url]); // ✅ 所有声明的依赖项
+  // ...
+}
+```
+
+*Effect 事件不是响应式的，必须始终省略其作为 Effect 的依赖项*。这就是让你在其中放置非响应式代码（可以在其中读取某些 `props` 和 `state` 的最新值）的原因。通过在 `onVisit` 中读取 `shoppingCart`，确保了 `shoppingCart` 不会使 Effect 重新运行。
