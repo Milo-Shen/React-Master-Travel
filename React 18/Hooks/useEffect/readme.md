@@ -875,3 +875,328 @@ export default function Page() {
 2. *在 Effect 中直接请求数据很容易导致“网络瀑布”*。当你渲染父组件时，它会请求一些数据，再渲染子组件，然后重复这样的过程来请求子组件的数据。如果网络不是很快，这将比并行请求所有数据要慢得多。
 3. *在 Effect 中直接请求数据通常意味着你不会预加载或缓存数据*。例如，如果组件卸载后重新挂载，它不得不再次请求数据。
 4. *这不符合工效学*。在调用 fetch 时，需要编写大量样板代码，以避免像 竞争条件 这样的 bug。
+
+这些缺点并不仅仅体现在 React 上，它可能出现在所有挂载时请求数据的地方。与路由一样，要做好数据请求并非易事，因此我们推荐以下方法：
++ *如果使用 框架，请使用其内置的数据请求机制*。现代的 React 框架集成了高效的数据请求机制，不会受到上述问题的影响。 否则，请考虑使用或构建客户端缓存。流行的开源解决方案包括 React Query、useSWR 和 React Router v6.4+。你也可以构建自己的解决方案，在这种情况下，你可以在掌控下使用 Effect，但也要添加逻辑来处理重复的请求、缓存响应和避免“网络瀑布”（通过预加载数据或将数据需求提升到路由层面）。
+
+如果这两种方法都不适合你，你可以继续直接在 Effect 中请求数据。
+
+### 指定响应式依赖项 
+*注意，你无法“选择” Effect 的依赖项*。Effect 代码中使用的每个 响应式值 都必须声明为依赖项。你的 Effect 依赖列表是由周围代码决定的：
+
+```jsx
+function ChatRoom({ roomId }) { // 这是一个响应式值
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // 这也是一个响应式值
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // 这个 Effect 读取这些响应式值
+    connection.connect();
+    return () => connection.disconnect();
+  }, [serverUrl, roomId]); // ✅ 因此你必须指定它们作为 Effect 的依赖项
+  // ...
+}
+```
+
+如果 `serverUrl` 或 `roomId` 任意一个发生变化，那么 Effect 将使用新的值重新连接到聊天室。
+
+*响应式值 包括 `props` 和直接在组件内声明的所有变量和函数*。由于 `roomId` 和 `serverUrl` 是响应式值，你不能将它们从依赖项中移除。如果你试图省略它们，并且你的代码检查工具针对 React 进行了正确的配置，那么代码检查工具会将它标记为需要修复的错误：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+  
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // 🔴 React Hook useEffect 缺少依赖项：'roomId' 和 'serverUrl'
+  // ...
+}
+```
+
+*要删除一个依赖项，你需要 “证明”给代码检查工具，表明它 不需要 作为一个依赖项*。例如，你可以将 serverUrl 声明移动到组件外面，以证明它不是响应式的，并且不会在重新渲染时发生变化：
+
+```jsx
+const serverUrl = 'https://localhost:1234'; // 不再是一个响应式值
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 所有声明的依赖项
+  // ...
+}
+```
+
+现在 `serverUrl` 不再是一个响应式值（并且在重新渲染时也不会更改），它就不需要成为一个依赖项。*如果 Effect 的代码不使用任何响应式值，则其依赖项列表应为空（[]）*：
+
+```jsx
+const serverUrl = 'https://localhost:1234'; // 不再是响应式值
+const roomId = 'music'; // 不再是响应式值
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ 所有声明的依赖项
+  // ...
+}
+```
+
+依赖项为空数组的 Effect 不会在组件任何的 props 或 state 发生改变时重新运行。
+
+### 陷阱
+如果你有一个现有的代码库，可能会有一些 Effect 像这样抑制了代码检查工具：
+
+```jsx
+useEffect(() => {
+  // ...
+  // 🔴 避免这样抑制代码检查工具：
+  // eslint-ignore-next-line react-hooks/exhaustive-deps
+}, []);
+```
+
+*当依赖项不匹配代码时，引入 bug 的风险很高*。通过抑制代码检查工具，你“欺骗”了 React 关于你 Effect 所依赖的值。相反，证明它们是不必要的。
+
+### 传递响应式依赖项的示例
+
+#### 第 1 个示例 共 3 个挑战: 传递依赖项数组 
+
+如果指定了依赖项，则 Effect 在 初始渲染后以及依赖项变更的重新渲染后 运行。
+
+```jsx
+useEffect(() => {
+  // ...
+}, [a, b]); // 如果 a 或 b 不同则会再次运行
+```
+
+在下面的示例中，`serverUrl` 和 `roomId` 是 响应式值，所以它们都必须被指定为依赖项。因此，在下拉列表中选择不同的聊天室或编辑服务器 URL 输入框会导致重新连接聊天室。但是，由于 `message` 没有在 Effect 中使用（所以它不是依赖项），编辑消息不会重新连接聊天室。
+
+##### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [serverUrl, roomId]);
+
+  return (
+    <>
+      <label>
+        Server URL:{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+      <label>
+        Your message:{' '}
+        <input value={message} onChange={e => setMessage(e.target.value)} />
+      </label>
+    </>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+        <button onClick={() => setShow(!show)}>
+          {show ? 'Close chat' : 'Open chat'}
+        </button>
+      </label>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId}/>}
+    </>
+  );
+}
+```
+
+##### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 真正的实现将实际连接到服务器
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+#### 第 2 个示例 共 3 个挑战: 传递空依赖项数组 
+如果你的 Effect 确实没有使用任何响应式值，则它仅在 初始渲染后 运行。
+
+```jsx
+useEffect(() => {
+  // ...
+}, []); // 不会再次运行（开发环境下除外）
+```
+
+*即使依赖项为空，setup 和 cleanup 函数也会 在开发中额外多运行一次，以帮你发现 bug。*
+
+在这个示例中，`serverUrl` 和 `roomId` 都是硬编码的。由于它们在组件外部声明，它们不是响应式值，因此它们不是依赖项。依赖项列表为空，因此 Effect 不会在重新渲染时重新运行。
+
+##### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+const roomId = 'music';
+
+function ChatRoom() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <label>
+        Your message:{' '}
+        <input value={message} onChange={e => setMessage(e.target.value)} />
+      </label>
+    </>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Close chat' : 'Open chat'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom />}
+    </>
+  );
+}
+```
+
+##### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 真正的实现将实际连接到服务器
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+#### 第 3 个示例 共 3 个挑战: 不传递依赖项数组 
+如果完全不传递依赖数组，则 Effect 会在组件的 *每次单独渲染（和重新渲染）之后* 运行。
+
+在本例中，当你更改 `serverUrl` 和 `roomId` 时，Effect 会重新运行，这是合理的。然而，当更改 `message` 时，它也会重新运行，这可能不是希望的。这就是通常要指定依赖项数组的原因。
+
+##### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }); // 没有依赖数组
+
+  return (
+    <>
+      <label>
+        Server URL:{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+      <label>
+        Your message:{' '}
+        <input value={message} onChange={e => setMessage(e.target.value)} />
+      </label>
+    </>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+        <button onClick={() => setShow(!show)}>
+          {show ? 'Close chat' : 'Open chat'}
+        </button>
+      </label>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId}/>}
+    </>
+  );
+}
+```
+
+##### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 真正的实现将实际连接到服务器
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
