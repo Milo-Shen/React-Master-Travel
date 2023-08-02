@@ -125,4 +125,350 @@ export default function Counter() {
 }
 ```
 
+`useReducer` 和 `useState` 非常相似，但是它可以让你把状态更新逻辑从事件处理函数中移动到组件外部。详情可以参阅 对比 `useState` 和 `useReducer`。
 
+## 实现 reducer 函数 
+reducer 函数的定义如下：
+
+```jsx
+function reducer(state, action) {
+  // ...
+}
+```
+
+你需要往函数体里面添加计算并返回新的 `state` 的逻辑。一般会使用 `switch` 语句 来完成。在 `switch` 语句中通过匹配 `case` 条件来计算并返回相应的 `state`。
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      return {
+        name: state.name,
+        age: state.age + 1
+      };
+    }
+    case 'changed_name': {
+      return {
+        name: action.nextName,
+        age: state.age
+      };
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+```
+
+`action` 可以是任意类型，不过通常至少是一个存在 `type` 属性的对象。也就是说它需要携带计算新的 `state` 值所必须的数据。
+
+```jsx
+function Form() {
+  const [state, dispatch] = useReducer(reducer, { name: 'Taylor', age: 42 });
+  
+  function handleButtonClick() {
+    dispatch({ type: 'incremented_age' });
+  }
+
+  function handleInputChange(e) {
+    dispatch({
+      type: 'changed_name',
+      nextName: e.target.value
+    });
+  }
+  // ...
+```
+
+`action` 的 `type` 依赖于组件的实际情况。即使它会导致数据的多次更新，每个 action 都只描述一次交互。state 的类型也是任意的，不过一般会使用对象或数组。
+
+## 陷阱
+
+### state 是只读的。即使是对象或数组也不要尝试修改它：
+
+```jsx
+function reducer(state, action) {
+    switch (action.type) {
+        case 'incremented_age': {
+            // 🚩 不要像下面这样修改一个对象类型的 state：
+            state.age = state.age + 1;
+            return state;
+        }
+    }
+}
+```
+
+正确的做法是返回新的对象：
+
+```jsx
+function reducer(state, action) {
+    switch (action.type) {
+        case 'incremented_age': {
+            // ✅ 正确的做法是返回新的对象
+            return {
+                ...state,
+                age: state.age + 1
+            };
+        }
+    }
+}
+```
+
+## useReducer 的基础示例
+
+### 第 1 个示例 共 3 个挑战: 表单（对象类型） 
+在这个示例中，`state` 是一个有 `name` 和 `age` 属性的对象。
+
+```jsx
+import { useReducer } from 'react';
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      return {
+        name: state.name,
+        age: state.age + 1
+      };
+    }
+    case 'changed_name': {
+      return {
+        name: action.nextName,
+        age: state.age
+      };
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+
+const initialState = { name: 'Taylor', age: 42 };
+
+export default function Form() {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  function handleButtonClick() {
+    dispatch({ type: 'incremented_age' });
+  }
+
+  function handleInputChange(e) {
+    dispatch({
+      type: 'changed_name',
+      nextName: e.target.value
+    }); 
+  }
+
+  return (
+    <>
+      <input
+        value={state.name}
+        onChange={handleInputChange}
+      />
+      <button onClick={handleButtonClick}>
+        Increment age
+      </button>
+      <p>Hello, {state.name}. You are {state.age}.</p>
+    </>
+  );
+}
+```
+
+### 第 2 个示例 共 3 个挑战: 代办事项（数组类型） 
+
+在这个示例中，`reducer` 管理一个名为 `tasks` 的数组。数组 不能使用修改方法 来更新。
+
+```jsx
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [...tasks, {
+        id: action.id,
+        text: action.text,
+        done: false
+      }];
+    }
+    case 'changed': {
+      return tasks.map(t => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(
+    tasksReducer,
+    initialTasks
+  );
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask
+        onAddTask={handleAddTask}
+      />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false }
+];
+```
+
+### 第 3 个示例 共 3 个挑战: 使用 Immer 编写简洁的更新逻辑 
+如果使用复制方法更新数组和对象让你不厌其烦，那么可以使用 `Immer` 这样的库来减少一些重复的样板代码。`Immer` 让你可以专注于逻辑，因为它在内部均使用复制方法来完成更新：
+
+```jsx
+import { useImmerReducer } from 'use-immer';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+function tasksReducer(draft, action) {
+  switch (action.type) {
+    case 'added': {
+      draft.push({
+        id: action.id,
+        text: action.text,
+        done: false
+      });
+      break;
+    }
+    case 'changed': {
+      const index = draft.findIndex(t =>
+        t.id === action.task.id
+      );
+      draft[index] = action.task;
+      break;
+    }
+    case 'deleted': {
+      return draft.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useImmerReducer(
+    tasksReducer,
+    initialTasks
+  );
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask
+        onAddTask={handleAddTask}
+      />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false },
+];
+```
+
+## 避免重新创建初始值 
+React 会保存 `state` 的初始值并在下一次渲染时忽略它。
+
+```jsx
+function createInitialState(username) {
+  // ...
+}
+
+function TodoList({ username }) {
+    const [state, dispatch] = useReducer(reducer, createInitialState(username));
+    // ...
+}
+```
+
+虽然 `createInitialState(username)` 的返回值只用于初次渲染，但是在每一次渲染的时候都会被调用。如果它创建了比较大的数组或者执行了昂贵的计算就会浪费性能。
+
+你可以通过给  `useReducer` 的第三个参数传入 初始化函数 来解决这个问题：
+
+```jsx
+function createInitialState(username) {
+  // ...
+}
+
+function TodoList({ username }) {
+    const [state, dispatch] = useReducer(reducer, username, createInitialState);
+    // ...
+}
+```
+
+需要注意的是你传入的参数是 `createInitialState` 这个 函数自身，而不是执行 `createInitialState()` 后的返回值。这样传参就可以保证初始化函数不会再次运行。
+
+在上面这个例子中，`createInitialState` 有一个 `username` 参数。如果初始化函数不需要参数就可以计算出初始值，可以把 `useReducer` 的第二个参数改为 `null`。
