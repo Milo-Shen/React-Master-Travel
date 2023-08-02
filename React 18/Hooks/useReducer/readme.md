@@ -752,3 +752,48 @@ return <button onClick={handleClick}>Click me</button>
 return <button onClick={(e) => handleClick(e)}>Click me</button>
 ```
 
+如果你没有发现上述错误，在控制台点开报错旁边的箭头以查看错误堆栈，从中查找是哪个 `dispatch` 函数引发的错误。
+
+### 我的 reducer 和初始化函数运行了两次 
+严格模式 下 React 会调用两次 `reducer` 和初始化函数，但是这不应该会破坏你的代码逻辑。
+
+这个 *仅限于开发模式* 的行为可以帮助你 保持组件纯粹：React 会使用其中一次调用结果并忽略另一个结果。如果你的组件、初始化函数以及 reducer 函数都是纯函数，这并不会影响你的逻辑。不过一旦它们存在副作用，这个额外的行为就可以帮助你发现它。
+
+比如下面这个 reducer 函数直接修改了数组类型的 state：
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'added_todo': {
+      // 🚩 错误：直接修改 state
+      state.todos.push({ id: nextId++, text: action.text });
+      return state;
+    }
+    // ...
+  }
+}
+```
+
+因为 React 会调用 reducer 函数两次，导致你看到添加了两条代办事项，于是你就发现了这个错误行为。在这个示例中，你可以通过 返回新的数组而不是修改数组 来修复它：
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'added_todo': {
+      // ✅ 修复：返回一个新的 state 数组
+      return {
+        ...state,
+        todos: [
+          ...state.todos,
+          { id: nextId++, text: action.text }
+        ]
+      };
+    }
+    // ...
+  }
+}
+```
+
+现在这个 reducer 是纯函数了，调用两次也不会有不一致的行为。这就是 React 如何通过调用两次函数来帮助你发现错误。*只有组件、初始化函数和 reducer 函数需要是纯函数*。事件处理函数不需要实现为纯函数，并且 React 永远不会调用事件函数两次。
+
+阅读 *保持组件纯粹* 以了解更多相关信息。
