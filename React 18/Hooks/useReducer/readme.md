@@ -652,3 +652,103 @@ const nextState = reducer(state, action);
 console.log(state);     // { age: 42 }
 console.log(nextState); // { age: 43 }
 ```
+
+### 我已经 dispatch 了一个 action，但是屏幕并没有更新 
+React 使用 `Object.is` 比较更新前后的 `state`，如果 它们相等就会跳过这次更新。这通常是因为你直接修改了对象或数组：
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // 🚩 错误行为：直接修改对象
+      state.age++;
+      return state;
+    }
+    case 'changed_name': {
+      // 🚩 错误行为：直接修改对象
+      state.name = action.nextName;
+      return state;
+    }
+    // ...
+  }
+}
+```
+
+你直接修改并返回了一个 `state` 对象，所以 React 会跳过这次更新。为了修复这个错误，你应该确保总是 使用正确的方式更新对象 和 使用正确的方式更新数组：
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // ✅ 修复：创建一个新的对象
+      return {
+        ...state,
+        age: state.age + 1
+      };
+    }
+    case 'changed_name': {
+      // ✅ 修复：创建一个新的对象
+      return {
+        ...state,
+        name: action.nextName
+      };
+    }
+    // ...
+  }
+}
+```
+
+### 在 dispatch 后 state 的某些属性变为了 undefined 
+请确保每个 `case` 语句中所返回的新的 `state` 都复制了当前的属性：
+
+```jsx
+function reducer(state, action) {
+    switch (action.type) {
+        case 'incremented_age': {
+            return {
+                ...state, // 不要忘记复制之前的属性！
+                age: state.age + 1
+            };
+        }
+        // ...
+    }
+}
+```
+
+如果上面的代码没有 `...state` ，返回的新的 `state` 就只有 `age` 属性。
+
+### 在 `dispatch` 后整个 `state` 都变为了 `undefined` 
+
+如果你的 `state` 错误地变成了 `undefined`，可能是因为你忘记在某个分支返回 `state`，或者是你遗漏了某些 `case` 分支。可以通过在 `switch` 语句之后抛出一个错误来查找原因：
+
+```jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // ...
+    }
+    case 'edited_name': {
+      // ...
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+```
+
+也可以通过使用 TypeScript 等静态检查工具来发现这类错误。
+
+### 我收到了一个报错：“Too many re-renders” 
+
+你可能会收到这样一条报错信息：`Too many re-renders. React limits the number of renders to prevent an infinite loop.`。这通常是在 渲染期间  dispatch 了 action 而导致组件进入了无限循环：dispatch（会导致一次重新渲染）、渲染、dispatch（再次导致重新渲染），然后无限循环。大多数这样的错误是由于事件处理函数中存在错误的逻辑：
+
+```jsx
+// 🚩 错误：渲染期间调用了处理函数
+return <button onClick={handleClick()}>Click me</button>
+
+// ✅ 修复：传递一个处理函数，而不是调用
+return <button onClick={handleClick}>Click me</button>
+
+// ✅ 修复：传递一个内联的箭头函数
+return <button onClick={(e) => handleClick(e)}>Click me</button>
+```
+
