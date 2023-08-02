@@ -472,3 +472,183 @@ function TodoList({ username }) {
 需要注意的是你传入的参数是 `createInitialState` 这个 函数自身，而不是执行 `createInitialState()` 后的返回值。这样传参就可以保证初始化函数不会再次运行。
 
 在上面这个例子中，`createInitialState` 有一个 `username` 参数。如果初始化函数不需要参数就可以计算出初始值，可以把 `useReducer` 的第二个参数改为 `null`。
+
+### 使用初始化函数和直接传入初始值的区别
+
+#### 第 1 个示例 共 2 个挑战: 使用初始化函数 
+
+这个示例使用了一个初始化函数，所以 `createInitialState` 函数只会在初次渲染的时候进行调用。即使往输入框中输入内容导致组件重新渲染，初始化函数也不会被再次调用。
+
+```jsx
+import { useReducer } from 'react';
+
+function createInitialState(username) {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: username + "'s task #" + (i + 1)
+    });
+  }
+  return {
+    draft: '',
+    todos: initialTodos,
+  };
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'changed_draft': {
+      return {
+        draft: action.nextDraft,
+        todos: state.todos,
+      };
+    };
+    case 'added_todo': {
+      return {
+        draft: '',
+        todos: [{
+          id: state.todos.length,
+          text: state.draft
+        }, ...state.todos]
+      }
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+
+export default function TodoList({ username }) {
+  const [state, dispatch] = useReducer(
+    reducer,
+    username,
+    createInitialState
+  );
+  return (
+    <>
+      <input
+        value={state.draft}
+        onChange={e => {
+          dispatch({
+            type: 'changed_draft',
+            nextDraft: e.target.value
+          })
+        }}
+      />
+      <button onClick={() => {
+        dispatch({ type: 'added_todo' });
+      }}>Add</button>
+      <ul>
+        {state.todos.map(item => (
+          <li key={item.id}>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+#### 第 2 个示例 共 2 个挑战: 直接传入初始值 
+这个示例 没有使用 初始化函数，所以当你往输入框输入内容导致组件重新渲染的时候，`createInitialState` 函数就会执行。虽然在渲染结果上看没有什么区别，但是多余的逻辑会导致性能变差。
+
+```jsx
+import { useReducer } from 'react';
+
+function createInitialState(username) {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: username + "'s task #" + (i + 1)
+    });
+  }
+  return {
+    draft: '',
+    todos: initialTodos,
+  };
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'changed_draft': {
+      return {
+        draft: action.nextDraft,
+        todos: state.todos,
+      };
+    };
+    case 'added_todo': {
+      return {
+        draft: '',
+        todos: [{
+          id: state.todos.length,
+          text: state.draft
+        }, ...state.todos]
+      }
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+
+export default function TodoList({ username }) {
+  const [state, dispatch] = useReducer(
+    reducer,
+    createInitialState(username)
+  );
+  return (
+    <>
+      <input
+        value={state.draft}
+        onChange={e => {
+          dispatch({
+            type: 'changed_draft',
+            nextDraft: e.target.value
+          })
+        }}
+      />
+      <button onClick={() => {
+        dispatch({ type: 'added_todo' });
+      }}>Add</button>
+      <ul>
+        {state.todos.map(item => (
+          <li key={item.id}>
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+## 疑难解答 
+
+### 我已经 dispatch 了一个 action，但是打印出来仍然还是旧的 state 
+
+调用 `dispatch` 函数 不会改变当前渲染的 `state`：
+
+```jsx
+function handleClick() {
+  console.log(state.age);  // 42
+
+  dispatch({ type: 'incremented_age' }); // 用 43 进行重新渲染
+  console.log(state.age);  // 还是 42！
+
+  setTimeout(() => {
+    console.log(state.age); // 一样是 42！
+  }, 5000);
+}
+```
+
+这是因为 `state` 的行为和快照一样。更新 `state` 会使用新的值来对组件进行重新渲染，但是不会改变当前执行的事件处理函数里面 `state` 的值。
+
+*如果你需要获取更新后的 `state`，可以手动调用 `reducer` 来得到结果*：
+
+```jsx
+const action = { type: 'incremented_age' };
+dispatch(action);
+
+const nextState = reducer(state, action);
+console.log(state);     // { age: 42 }
+console.log(nextState); // { age: 43 }
+```
