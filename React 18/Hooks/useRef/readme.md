@@ -389,3 +389,89 @@ export default function Form() {
   );
 }
 ```
+
+### 避免重复创建 ref 的内容
+
+React 保存首次的 `ref` 初始值，并在后续的渲染中忽略它。
+
+```jsx
+function Video() {
+    const playerRef = useRef(new VideoPlayer());
+    // ...
+}
+```
+
+虽然 `new VideoPlayer()` 的结果只会在首次渲染时使用，但是你依然在每次渲染时都在调用这个方法。如果是创建昂贵的对象，这可能是一种浪费。
+
+为了解决这个问题，你可以像这样初始化 `ref`：
+
+```jsx
+function Video() {
+    const playerRef = useRef(null);
+    if (playerRef.current === null) {
+        playerRef.current = new VideoPlayer();
+    }
+    // ...
+}
+```
+
+通常情况下，在渲染过程中写入或读取 `ref.current` 是不允许的。然而，在这种情况下是可以的，因为结果总是一样的，而且条件只在初始化时执行，所以是完全可以预测的。
+
+### 如何避免在初始化 useRef 之后进行 null 的类型检查 
+
+如果你使用一个类型检查器，并且不想总是检查 `null`，你可以尝试用这样的模式来代替：
+
+```jsx
+function Video() {
+    const playerRef = useRef(null);
+
+    function getPlayer() {
+        if (playerRef.current !== null) {
+            return playerRef.current;
+        }
+        const player = new VideoPlayer();
+        playerRef.current = player;
+        return player;
+    }
+
+    // ...
+}
+```
+
+在这里，`playerRef` 本身是可以为空的。然而，你应该能够使你的类型检查器确信，不存在 `getPlayer()` 返回 `null` 的情况。然后在你的事件处理程序中使用 `getPlayer()`。
+
+## 疑难解答 
+
+### 我无法获取自定义组件的 ref 
+
+如果你尝试像这样传递 `ref` 到你自己的组件：
+
+```jsx
+const inputRef = useRef(null);
+
+return <MyInput ref={inputRef} />;
+```
+
+默认情况下，你自己的组件不会暴露它们内部 DOM 节点的 `ref`。
+
+为了解决这个问题，首先，找到你想获得 `ref` 的组件：
+
+然后像这样将其包装在 `forwardRef` 里：
+
+```jsx
+import { forwardRef } from 'react';
+
+const MyInput = forwardRef(({ value, onChange }, ref) => {
+  return (
+    <input
+      value={value}
+      onChange={onChange}
+      ref={ref}
+    />
+  );
+});
+
+export default MyInput;
+```
+
+最后，父级组件就可以得到它的 `ref`。
