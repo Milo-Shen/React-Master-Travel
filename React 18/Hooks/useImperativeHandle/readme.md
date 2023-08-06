@@ -91,3 +91,162 @@ const MyInput = forwardRef(function MyInput(props, ref) {
   return <input {...props} ref={inputRef} />;
 });
 ```
+
+现在，如果你的父组件获得了 `MyInput` 的 `ref`，就能通过该 `ref` 来调用 `focus` 和 `scrollIntoView` 方法。然而，它的访问是受限的，无法读取或调用下方 `<input>` DOM 节点的其他所有属性和方法。
+
+##### App.js
+
+```jsx
+import { useRef } from 'react';
+import MyInput from './MyInput.js';
+
+export default function Form() {
+  const ref = useRef(null);
+
+  function handleClick() {
+    ref.current.focus();
+    // 下方代码不起作用，因为 DOM 节点并未被暴露出来：
+    // ref.current.style.opacity = 0.5;
+  }
+
+  return (
+    <form>
+      <MyInput label="Enter your name:" ref={ref} />
+      <button type="button" onClick={handleClick}>
+        Edit
+      </button>
+    </form>
+  );
+}
+```
+
+##### MyInput.js
+
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+
+const MyInput = forwardRef(function MyInput(props, ref) {
+  const inputRef = useRef(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      focus() {
+        inputRef.current.focus();
+      },
+      scrollIntoView() {
+        inputRef.current.scrollIntoView();
+      },
+    };
+  }, []);
+
+  return <input {...props} ref={inputRef} />;
+});
+
+export default MyInput;
+```
+
+### 暴露你自己的命令式方法 
+
+你通过命令式句柄暴露出来的方法不一定需要完全匹配 DOM 节点的方法。例如，这个 `Post` 组件暴露了一个 `scrollAndFocusAddComment` 方法。它可以让你在点击按钮后，使父组件 `Page` 滚动到评论列表的底部 并 聚焦到输入框：
+
+##### App.js
+
+```jsx
+import { useRef } from 'react';
+import Post from './Post.js';
+
+export default function Page() {
+  const postRef = useRef(null);
+
+  function handleClick() {
+    postRef.current.scrollAndFocusAddComment();
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>
+        Write a comment
+      </button>
+      <Post ref={postRef} />
+    </>
+  );
+}
+```
+
+##### Post.js
+
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+import CommentList from './CommentList.js';
+import AddComment from './AddComment.js';
+
+const Post = forwardRef((props, ref) => {
+  const commentsRef = useRef(null);
+  const addCommentRef = useRef(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      scrollAndFocusAddComment() {
+        commentsRef.current.scrollToBottom();
+        addCommentRef.current.focus();
+      }
+    };
+  }, []);
+
+  return (
+    <>
+      <article>
+        <p>Welcome to my blog!</p>
+      </article>
+      <CommentList ref={commentsRef} />
+      <AddComment ref={addCommentRef} />
+    </>
+  );
+});
+
+export default Post;
+```
+
+##### CommentList.js
+
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+
+const CommentList = forwardRef(function CommentList(props, ref) {
+    const divRef = useRef(null);
+
+    useImperativeHandle(ref, () => {
+        return {
+            scrollToBottom() {
+                const node = divRef.current;
+                node.scrollTop = node.scrollHeight;
+            }
+        };
+    }, []);
+
+    let comments = [];
+    for (let i = 0; i < 50; i++) {
+        comments.push(<p key={i}>Comment #{i}</p>);
+    }
+
+    return (
+        <div className="CommentList" ref={divRef}>
+            {comments}
+        </div>
+    );
+});
+
+export default CommentList;
+```
+
+##### AddComment.js
+
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+
+const AddComment = forwardRef(function AddComment(props, ref) {
+  return <input placeholder="Add comment..." ref={ref} />;
+});
+
+export default AddComment;
+```
