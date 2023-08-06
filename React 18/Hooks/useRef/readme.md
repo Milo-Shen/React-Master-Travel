@@ -155,3 +155,237 @@ export default function Stopwatch() {
   );
 }
 ```
+
+### 陷阱
+
+#### 不要在渲染期间写入 或者读取 `ref.current`。
+
+React 期望你的组件的主体 表现得像一个纯函数：
++ 如果输入的（`props`、`state` 和 `context`）都是一样的，那么就应该返回一样的 JSX。
++ 以不同的顺序或用不同的参数调用它，不应该影响其他调用的结果。
+
+在 *渲染期间* 读取或写入 `ref` 会破坏这些预期行为。
+
+```jsx
+function MyComponent() {
+  // ...
+  // 🚩 不要在渲染期间写入 ref
+  myRef.current = 123;
+  // ...
+  // 🚩 不要在渲染期间读取 ref
+  return <h1>{myOtherRef.current}</h1>;
+}
+```
+
+你可以在 事件处理程序或者 effects 中读取和写入 ref。
+
+```jsx
+function MyComponent() {
+  // ...
+  useEffect(() => {
+    // ✅ 你可以在 effects 中读取和写入 ref
+    myRef.current = 123;
+  });
+  // ...
+  function handleClick() {
+    // ✅ 你可以在事件处理程序中读取和写入 ref
+    doSomething(myOtherRef.current);
+  }
+  // ...
+}
+```
+
+如果 *不得不* 在渲染期间读取 或者写入，使用 state 代替。
+
+当你打破这些规则时，你的组件可能仍然可以工作，但是我们为 React 添加的大多数新功能将依赖于这些预期行为。
+
+### 通过 ref 操作 DOM 
+使用 `ref` 操作 DOM 是非常常见的。React 内置了对它的支持。
+
+首先，声明一个 `initial value` 为 `null` 的 `ref` 对象
+
+```jsx
+import { useRef } from 'react';
+
+function MyComponent() {
+    const inputRef = useRef(null);
+    // ...
+}
+```
+
+然后将你的 `ref` 对象作为 `ref` 属性传递给你想要操作的 DOM 节点的 JSX：
+
+```jsx
+  // ...
+  return <input ref={inputRef} />;
+```
+
+当 React 创建 DOM 节点并将其渲染到屏幕时，React 将会把 DOM 节点设置为你的 `ref` 对象的 `current` 属性。现在你可以访问 `<input>` 的 DOM 节点，并且可以调用类似于 `focus()` 的方法：
+
+```jsx
+  function handleClick() {
+    inputRef.current.focus();
+  }
+```
+
+当节点从屏幕上移除时，React 将把 `current` 属性设回 `null`。
+
+### Examples of manipulating the DOM with useRef
+
+#### 第 1 个示例 共 4 个挑战: 聚焦文字输入框 
+
+在这个示例中，点击按钮将会聚焦 `input`：
+
+```jsx
+import { useRef } from 'react';
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <input ref={inputRef} />
+      <button onClick={handleClick}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
+
+#### 第 2 个示例 共 4 个挑战: 滚动图片到视图 
+
+在这个示例中，点击按钮将会把图片滚动到视图。这里使用 ref 绑定到列表的 DOM 节点，然后调用 DOM 的 `querySelectorAll` API 找到我们想要滚动的图片。
+
+```jsx
+import { useRef } from 'react';
+
+export default function CatFriends() {
+  const listRef = useRef(null);
+
+  function scrollToIndex(index) {
+    const listNode = listRef.current;
+    // This line assumes a particular DOM structure:
+    const imgNode = listNode.querySelectorAll('li > img')[index];
+    imgNode.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }
+
+  return (
+    <>
+      <nav>
+        <button onClick={() => scrollToIndex(0)}>
+          Tom
+        </button>
+        <button onClick={() => scrollToIndex(1)}>
+          Maru
+        </button>
+        <button onClick={() => scrollToIndex(2)}>
+          Jellylorum
+        </button>
+      </nav>
+      <div>
+        <ul ref={listRef}>
+          <li>
+            <img
+              src="https://placekitten.com/g/200/200"
+              alt="Tom"
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/300/200"
+              alt="Maru"
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/250/200"
+              alt="Jellylorum"
+            />
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+}
+```
+
+#### 第 3 个示例 共 4 个挑战: 播放和暂停视频
+
+这个示例使用 `ref` 调用 `<video>` DOM 节点的 `play()` 和 `pause()` 方法。
+
+```jsx
+import { useState, useRef } from 'react';
+
+export default function VideoPlayer() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const ref = useRef(null);
+
+  function handleClick() {
+    const nextIsPlaying = !isPlaying;
+    setIsPlaying(nextIsPlaying);
+
+    if (nextIsPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <video
+        width="250"
+        ref={ref}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      >
+        <source
+          src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+          type="video/mp4"
+        />
+      </video>
+    </>
+  );
+}
+```
+
+### 第 4 个示例 共 4 个挑战: 向你的组件暴露 ref 
+
+有时，你可能想让父级组件在你的组件中操纵 DOM。例如，也许你正在写一个 `MyInput` 组件，但你希望父组件能够聚焦 `input`（父组件无法访问）。你可以使用一个组合，通过 `useRef` 持有 `input` 并且通过 `forwardRef` 来将其暴露给父组件。
+
+```jsx
+import { forwardRef, useRef } from 'react';
+
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
