@@ -35,7 +35,7 @@ function useCSS(rule) {
 
 ### 返回值 
 
-useInsertionEffect 返回 undefined。
+`useInsertionEffect` 返回 `undefined`。
 
 + Effects 只在客户端上运行。它们不会在服务器渲染期间运行。
 + 你不能从 `useInsertionEffect` 内部更新状态。
