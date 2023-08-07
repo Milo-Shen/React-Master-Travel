@@ -221,3 +221,82 @@ export default function TooltipContainer({ children, x, y, contentRef }) {
 ```
 
 注意，即使 `Tooltip` 组件需要两次渲染（首先，使用初始值为 `0` 的 `tooltipHeight` 渲染，然后使用实际测量的高度渲染），你也只能看到最终结果。这就是为什么在这个例子中需要 `useLayoutEffect` 而不是 `useEffect` 的原因。让我们来看看下面的细节差别。
+
+### useLayoutEffect vs useEffect
+
+#### 第 1 个示例 共 2 个挑战: useLayoutEffect 阻塞浏览器重新绘制
+React 保证了 `useLayoutEffect` 中的代码以及其中任何计划的状态更新都会在浏览器重新绘制屏幕之前得到处理。这样你就可以渲染 `tooltip`，测量它，然后在用户没有注意到第一个额外渲染的情况下再次重新渲染。换句话说，`useLayoutEffect` 阻塞了浏览器的绘制。
+
+#### 第 2 个示例 共 2 个挑战: useEffect 不阻塞浏览器绘制 
+下面是同样的例子，但是使用 `useEffect` 代替 `useLayoutEffect`。如果你使用的是速度较慢的设备，你可能注意到有时 `tooltip` 会“闪烁”，并且会在更正位置之前短暂地看到初始位置。
+
+##### Tooltip.js
+
+```jsx
+import { useRef, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import TooltipContainer from './TooltipContainer.js';
+
+export default function Tooltip({ children, targetRect }) {
+    const ref = useRef(null);
+    const [tooltipHeight, setTooltipHeight] = useState(0);
+
+    // 人为地减慢了渲染
+    let now = performance.now();
+    while (performance.now() - now < 100) {
+        // 不做任何事情...
+    }
+
+    useEffect(() => {
+        const { height } = ref.current.getBoundingClientRect();
+        setTooltipHeight(height);
+    }, []);
+
+    let tooltipX = 0;
+    let tooltipY = 0;
+    if (targetRect !== null) {
+        tooltipX = targetRect.left;
+        tooltipY = targetRect.top - tooltipHeight;
+        if (tooltipY < 0) {
+            // 它不适合上方，因此把它放在下面。
+            tooltipY = targetRect.bottom;
+        }
+    }
+
+    return createPortal(
+        <TooltipContainer x={tooltipX} y={tooltipY} contentRef={ref}>
+            {children}
+        </TooltipContainer>,
+        document.body
+    );
+}
+```
+
+为了使 bug 更容易重现，此版本在渲染期间人为地添加了延迟。React 将在处理 `useEffect` 内部的状态更新之前让浏览器绘制屏幕。结果，`tooltip` 会闪烁：
+使用 `useLayoutEffect` 编辑这个例子，可以观察到即使渲染速度减慢，它也会阻塞绘制。
+
+### 注意
+两次渲染并阻塞浏览器绘制会影响性能。尽量避免这种情况。
+
+## 疑难解答 
+
+### 我收到一个错误：“ useLayoutEffect 在服务端没有任何作用” 
+
+`useLayoutEffect` 的目的是让你的组件 使用布局信息来渲染：
+1. 渲染初始的内容。
+2. 在 浏览器重新绘制屏幕之前 测量布局。
+3. 使用所读取的布局信息渲染最终内容。
+
+当你或你的框架使用 服务端渲染 时，你的 React 应用将在服务端渲染 HTML 以进行初始渲染。这使你可以在加载 JavaScript 代码之前显示初始的 HTML。
+
+问题是在服务器上没有布局信息。
+
+在 前面的示例 中，`Tooltip` 组件中的 `useLayoutEffect` 调用允许它根据内容高度正确定位自己的位置（高于或低于内容）。如果你试图将 Tooltip 作为服务端初始 HTML 的一部分渲染，那么这是不可能确定的。在服务端，还没有布局！因此，即使你在服务端渲染它，它的位置也会在 JavaScript 加载和运行之后在客户端上“跳动”。
+
+通常，依赖于布局信息的组件不需要在服务器上渲染。例如，在初始渲染时显示 `Tooltip` 可能就没有意义了。它是通过客户端交互触发的。
+
+然而，如果你遇到这个问题，你有几个不同的选择：
+1. 用 useEffect 替换 useLayoutEffect。React 可以在不阻塞绘制的情况下显示初始的渲染结果（因为初始的 HTML 将在 Effect 运行之前显示出来）。
+2. 或者，将组件标记为仅客户端。这告诉 React 在服务端渲染时用一个 `loading` 降级（例如，一个 `spinner` 或者 `glimmer`）替换其内容到上方最近的 `<Suspense>` 边界。
+3. 或者，只有在水合之后，使用 `useLayoutEffect` 渲染组件。保留一个初始化为 `false` 的 `isMounted` 布尔状态，并在 `useEffect` 调用中将其设置为 `true`。然后你的渲染逻辑就会像 `return isMounted ? <RealContent /> : <FallbackContent />` 这样。在服务端和水合过程中，用户将看到 `FallbackContent`，它不应该调用 `useLayoutEffect`。然后 React 将用 RealContent 替换它，`RealContent` 仅在客户端上运行并且可以包含 `useLayoutEffect` 调用。
+4. 如果你将组件与外部数据存储同步，并且依赖 `useLayoutEffect` 的原因不同于测量布局，可以考虑使用 支持服务端渲染 的 `useSyncExternalStore`。
