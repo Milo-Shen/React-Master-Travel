@@ -43,3 +43,74 @@ function useCSS(rule) {
 + `useInsertionEffect` 可以在 DOM 更新之前或之后运行。您不应该依赖于在任何特定时间更新的 DOM。
 + 与其他类型的 `Effects` 不同，它们先为每个 `Effect` 触发 `cleanup`，然后为每个 Effect 执行 `setup`，`useInsertionEffect` 将一次触发一个组件的 `cleanup` 和 `set`。这将导致 `cleanup` 和 `set` 函数的“交错”。
  
+## 用法
+
+### 从 CSS-in-JS 库中注入动态样式 
+
+传统上，你会使用纯 CSS 为 React 组件设置样式。
+
+```
+// 在你的 JS 文件中：
+<button className="success" />
+
+// 在你的 CSS 文件中：
+.success { color: green; }
+```
+
+有些团队更喜欢直接在 JavaScript 代码中编写样式，而不是编写 CSS 文件。这通常需要使用 CSS-in-JS 库或工具。以下是 CSS-in-JS 三种常见的实现方法：
+1. 使用编译器静态提取到 CSS 文件
+2. 内联样式，例如 `<div style={{ opacity: 1 }}>`
+3. 运行时注入 `<style>` 标签
+
+如果你使用 CSS-in-JS，我们建议结合使用前两种方法（静态样式使用 CSS 文件，动态样式使用内联样式）。我们不建议运行时注入 `<style>` 标签有两个原因：
+1. 运行时注入会使浏览器频繁地重新计算样式。
+2. 如果在 React 生命周期中某个错误的时机进行运行时注入，它可能会非常慢。
+
+第一个问题无法解决，但是 `useInsertionEffect` 可以帮助你解决第二个问题。
+
+调用 `useInsertionEffect` 在任何 layout effects 触发之前插入样式:
+
+```jsx
+// 在你的 CSS-in-JS 库中
+let isInserted = new Set();
+function useCSS(rule) {
+  useInsertionEffect(() => {
+    // 同前所述，我们不建议在运行时注入 <style> 标签。
+    // 如果你必须这样做，那么应当在 useInsertionEffect 中进行。
+    if (!isInserted.has(rule)) {
+      isInserted.add(rule);
+      document.head.appendChild(getStyleForRule(rule));
+    }
+  });
+  return rule;
+}
+
+function Button() {
+  const className = useCSS('...');
+  return <div className={className} />;
+}
+```
+
+与 `useEffect` 类似，`useInsertionEffect` 不在服务端运行。如果你需要收集在服务端上使用了哪些 CSS 规则，你可以在渲染期间进行：
+
+```jsx
+let collectedRulesSet = new Set();
+
+function useCSS(rule) {
+  if (typeof window === 'undefined') {
+    collectedRulesSet.add(rule);
+  }
+  useInsertionEffect(() => {
+    // ...
+  });
+  return rule;
+}
+```
+
+[阅读更多使用 useInsertionEffect 升级 CSS-in-JS 库的相关指南。](https://github.com/reactwg/react-18/discussions/110)
+
+### 这与在渲染期间或 `useLayoutEffect` 中注入样式相比有何优势？ 
+
+如果你在渲染期间注入样式并且 React 正在处理 非阻塞更新，那么浏览器将在渲染组件树时每一帧都会重新计算样式，这可能会 非常慢。
+
+`useInsertionEffect` 比在 `useLayoutEffect` 或 `useEffect` 期间注入样式更好。因为它会确保 `<style>` 标签在其它 `Effect` 运行前被注入。否则，正常的 `Effect` 中的布局计算将由于过时的样式而出错。
