@@ -149,3 +149,63 @@ function Details({ artistId }) {
   </Suspense>
 </Suspense>
 ```
+
+通过这个改变，显示 `Biography` 不需要“等待” `Albums` 加载。
+1. 如果 `Biography` 没有加载完成，`BigSpinner` 会显示在整个内容区域的位置。
+2. 一旦 `Biography` 加载完成，`BigSpinner` 会被内容替换。
+3. 如果 `Albums` 没有加载完成，`AlbumsGlimmer` 会显示在 `Albums` 和它的父级 `Panel` 的位置。
+4. 最后，一旦 `Albums` 加载完成，它会替换 `AlbumsGlimmer`。
+
+#### ArtistPage.js
+```jsx
+import { Suspense } from 'react';
+import Albums from './Albums.js';
+import Biography from './Biography.js';
+import Panel from './Panel.js';
+
+export default function ArtistPage({ artist }) {
+  return (
+    <>
+      <h1>{artist.name}</h1>
+      <Suspense fallback={<BigSpinner />}>
+        <Biography artistId={artist.id} />
+        <Suspense fallback={<AlbumsGlimmer />}>
+          <Panel>
+            <Albums artistId={artist.id} />
+          </Panel>
+        </Suspense>
+      </Suspense>
+    </>
+  );
+}
+
+function BigSpinner() {
+  return <h2>🌀 Loading...</h2>;
+}
+
+function AlbumsGlimmer() {
+  return (
+    <div className="glimmer-panel">
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+    </div>
+  );
+}
+```
+
+#### Panel.js
+```jsx
+export default function Panel({ children }) {
+  return (
+    <section className="panel">
+      {children}
+    </section>
+  );
+}
+```
+
+`Suspense` 边界允许你协调 UI 的哪些部分应该总是一起“浮现”，以及哪些部分应该按照加载状态的序列逐步显示更多内容。你可以在树的任何位置添加、移动或删除 `Suspense` 边界，而不会影响应用程序的其余的行为。
+
+不要在每个组件周围都放置 `Suspense` 边界。为了提供更好的用户体验，`Suspense` 边界的粒度应该与期望的加载粒度相匹配。如果你与设计师合作，请询问他们应该放置加载状态的位置——他们很可能已经在设计线框图中包含了它们。
+
