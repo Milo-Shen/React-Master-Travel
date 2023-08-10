@@ -134,3 +134,18 @@ function Details({ artistId }) {
   );
 }
 ```
+
+### 逐步加载内容 
+
+当一个组件挂起（`suspend`）时，最近的父级 `Suspense` 组件会显示退路方案（`fallback`）。这允许你嵌套多个 `Suspense` 组件来创建一个加载序列。每个 `Suspense` 边界的退路方案（`fallback`）都会在下一级内容可用时填充。例如，你可以给专辑列表设置自己的退路方案（`fallback`）
+
+```jsx
+<Suspense fallback={<BigSpinner />}>
+  <Biography />
+  <Suspense fallback={<AlbumsGlimmer />}>
+    <Panel>
+      <Albums />
+    </Panel>
+  </Suspense>
+</Suspense>
+```
