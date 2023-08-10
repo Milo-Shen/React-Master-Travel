@@ -209,3 +209,87 @@ export default function Panel({ children }) {
 
 不要在每个组件周围都放置 `Suspense` 边界。为了提供更好的用户体验，`Suspense` 边界的粒度应该与期望的加载粒度相匹配。如果你与设计师合作，请询问他们应该放置加载状态的位置——他们很可能已经在设计线框图中包含了它们。
 
+### 在新内容加载时展示过时内容 
+在这个例子中，`SearchResults` 组件在获取搜索结果时挂起（`suspend`）。输入 "a"，等待结果，然后将其编辑为 "ab"。"a" 的结果将被加载中退路方案（`fallback`）替换。
+
+```jsx
+import { Suspense, useState } from 'react';
+import SearchResults from './SearchResults.js';
+
+export default function App() {
+  const [query, setQuery] = useState('');
+  return (
+    <>
+      <label>
+        Search albums:
+        <input value={query} onChange={e => setQuery(e.target.value)} />
+      </label>
+      <Suspense fallback={<h2>Loading...</h2>}>
+        <SearchResults query={query} />
+      </Suspense>
+    </>
+  );
+}
+```
+
+一个常见的替代 UI 模式是 延迟 更新列表，并保持显示之前的结果，直到新的结果准备好。`useDeferredValue` Hook 允许你传递一个延迟版本的查询：
+
+```jsx
+export default function App() {
+  const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
+  return (
+    <>
+      <label>
+        Search albums:
+        <input value={query} onChange={e => setQuery(e.target.value)} />
+      </label>
+      <Suspense fallback={<h2>Loading...</h2>}>
+        <SearchResults query={deferredQuery} />
+      </Suspense>
+    </>
+  );
+}
+```
+
+`query` 将立即更新，所以输入框会显示新的值。然而，`deferredQuery` 将保持它之前的值，直到数据加载完成，所以 `SearchResults` 会显示过时的结果一会儿。
+
+为了让用户更容易理解，你可以在显示过时的结果列表时添加一个视觉指示：
+
+```jsx
+<div style={{
+  opacity: query !== deferredQuery ? 0.5 : 1 
+}}>
+  <SearchResults query={deferredQuery} />
+</div>
+```
+
+在下面的例子中，输入 "a"，等待结果加载，然后编辑输入为 "ab"。注意，你现在看到的不是 `Suspense` 的退路方案（`fallback`），而是暗淡的过时结果列表，直到新的结果加载完成：
+
+```jsx
+import { Suspense, useState, useDeferredValue } from 'react';
+import SearchResults from './SearchResults.js';
+
+export default function App() {
+  const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
+  const isStale = query !== deferredQuery;
+  return (
+    <>
+      <label>
+        Search albums:
+        <input value={query} onChange={e => setQuery(e.target.value)} />
+      </label>
+      <Suspense fallback={<h2>Loading...</h2>}>
+        <div style={{ opacity: isStale ? 0.5 : 1 }}>
+          <SearchResults query={deferredQuery} />
+        </div>
+      </Suspense>
+    </>
+  );
+}
+```
+
+### 注意
+延迟值和过渡都可以让你避免显示 `Suspense` 的退路方案（`fallback`），而是使用内联指示器。过渡将整个更新标记为非紧急的，因此它们通常由框架和路由库用于导航。另一方面，延迟值在你希望将 UI 的一部分标记为非紧急，并让它“落后于” UI 的其余部分时非常有用。
+
