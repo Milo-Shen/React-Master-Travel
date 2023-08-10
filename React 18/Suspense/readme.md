@@ -293,3 +293,135 @@ export default function App() {
 ### 注意
 延迟值和过渡都可以让你避免显示 `Suspense` 的退路方案（`fallback`），而是使用内联指示器。过渡将整个更新标记为非紧急的，因此它们通常由框架和路由库用于导航。另一方面，延迟值在你希望将 UI 的一部分标记为非紧急，并让它“落后于” UI 的其余部分时非常有用。
 
+#### App.js
+```jsx
+import { Suspense, useState } from 'react';
+import IndexPage from './IndexPage.js';
+import ArtistPage from './ArtistPage.js';
+import Layout from './Layout.js';
+
+export default function App() {
+  return (
+    <Suspense fallback={<BigSpinner />}>
+      <Router />
+    </Suspense>
+  );
+}
+
+function Router() {
+  const [page, setPage] = useState('/');
+
+  function navigate(url) {
+    setPage(url);
+  }
+
+  let content;
+  if (page === '/') {
+    content = (
+      <IndexPage navigate={navigate} />
+    );
+  } else if (page === '/the-beatles') {
+    content = (
+      <ArtistPage
+        artist={{
+          id: 'the-beatles',
+          name: 'The Beatles',
+        }}
+      />
+    );
+  }
+  return (
+    <Layout>
+      {content}
+    </Layout>
+  );
+}
+
+function BigSpinner() {
+  return <h2>🌀 Loading...</h2>;
+}
+```
+
+#### Layout.js
+```jsx
+export default function Layout({ children }) {
+  return (
+    <div className="layout">
+      <section className="header">
+        Music Browser
+      </section>
+      <main>
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+#### IndexPage.js
+```jsx
+export default function IndexPage({ navigate }) {
+  return (
+    <button onClick={() => navigate('/the-beatles')}>
+      Open The Beatles artist page
+    </button>
+  );
+}
+```
+
+### ArtistPage.js
+```jsx
+import { Suspense } from 'react';
+import Albums from './Albums.js';
+import Biography from './Biography.js';
+import Panel from './Panel.js';
+
+export default function ArtistPage({ artist }) {
+  return (
+    <>
+      <h1>{artist.name}</h1>
+      <Biography artistId={artist.id} />
+      <Suspense fallback={<AlbumsGlimmer />}>
+        <Panel>
+          <Albums artistId={artist.id} />
+        </Panel>
+      </Suspense>
+    </>
+  );
+}
+
+function AlbumsGlimmer() {
+  return (
+    <div className="glimmer-panel">
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+    </div>
+  );
+}
+```
+
+当你按下按钮时，`Router` 组件渲染了 `ArtistPage`，而不是 `IndexPage`。`ArtistPage` 内部的一个组件挂起（`suspend`），所以最近的 `Suspense` 边界开始显示退路方案（`fallback`）。最近的 `Suspense` 边界在根附近，所以整个站点布局被 `BigSpinner` 替换了。
+
+为了阻止这种情况，你可以使用 `startTransition`: 将导航状态更新标记为 过渡：
+
+```jsx
+function Router() {
+    const [page, setPage] = useState('/');
+
+    function navigate(url) {
+        startTransition(() => {
+            setPage(url);
+        });
+    }
+
+    // ...
+}
+```
+
+这告诉 React 这个 state 过渡不是紧急的，最好继续显示上一页，而不是隐藏任何已经显示的内容。现在点击按钮并等待 `Biography` 加载：
+
+过渡并不会等待 所有 内容加载完成。它只会等待足够长的时间，以避免隐藏已经显示的内容。例如，网站 `Layout` 已经显示，所以将其隐藏在加载中指示器后面是不好的。然而，`Albums` 周围的嵌套 `Suspense` 边界是新出现的，所以过渡不会等待它。
+
+#### 注意
+启用了 Suspense 的路由在默认情况下会将导航更新包装到过渡中。
