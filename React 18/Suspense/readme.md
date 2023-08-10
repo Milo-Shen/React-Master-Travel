@@ -479,3 +479,58 @@ function BigSpinner() {
   return <h2>🌀 Loading...</h2>;
 }
 ```
+
+### 在导航时重置 Suspense 边界 
+在过渡发生时，React 将避免隐藏已经显示的内容。但是，如果你导航到具有不同参数的路由，你可能想告诉 React 它是 不同 的内容。你可以用 `key` 表示这一点：
+
+```jsx
+<ProfilePage key={queryParams.id} />
+```
+
+想想你在用户的个人资料页面中导航，然后暂停了。如果更新被包装在一个过渡中，它将不会触发已经可见内容的退路方案（`fallback`）。这是预期的行为。
+
+然而，现在想象一下你在两个不同的用户资料之间导航。在这种情况下，显示退路方案（`fallback`）是有意义的。例如，一个用户的时间线是与另一个用户的时间线是 不同的内容。通过指定一个 `key`，你可以确保 React 将不同用户的个人资料视为不同的组件，并在导航期间重置 `Suspense` 边界。集成 `Suspense` 的路由应该自动执行此操作。
+
+### 为服务器错误和客户端内容提供退路方案（fallback） 
+如果你使用过 流式服务器渲染 API（或依赖它们的框架），React 也会使用你的 `<Suspense>` 边界来处理服务器上的错误。如果组件在服务器上抛出错误，React 将不会中止服务器渲染。相反，它将找到最接近的 `<Suspense>` 组件并将其退路方案（`fallback`）（例如一个加载中指示器）包含到生成的服务端 HTML 中。用户将首先看到一个加载中指示器。
+
+在客户端，React 将尝试再次渲染相同的组件。如果它在客户端也出错，React 将抛出错误并显示最接近的 错误边界。然而，如果它在客户端没有错误，React 将不会向用户显示错误，因为内容最终成功显示了。
+
+你可以使用这个来防止一些组件在服务端渲染。为此，你应该在服务器环境中抛出一个错误，然后将其包装在一个 `<Suspense>` 边界中，从而用退路方案（`fallback`）替换它们的 HTML：
+
+```jsx
+<Suspense fallback={<Loading />}>
+  <Chat />
+</Suspense>
+
+function Chat() {
+  if (typeof window === 'undefined') {
+    throw Error('Chat should only render on the client.');
+  }
+  // ...
+}
+```
+
+服务端 HTML 将包含加载中指示器。它将被客户端上的 Chat 组件替换。
+
+## 故障排除 
+
+### 我应该如何阻止 UI 在更新期间被退路方案（fallback）替换 
+用一个退路方案（`fallback`）替换一个可见的 UI 会带来令人不快的用户体验。当一个更新导致一个组件挂起（`suspend`）时，而最近的 `Suspense` 边界已经向用户显示了内容时，这种情况可能发生。
+
+为了防止这种情况发生，使用 `startTransition` 将更新标记为非紧急的。在过渡期间，React 将等待足够的数据加载，以防止不需要的退路方案（`fallback`）出现：
+
+```jsx
+function handleNextPageClick() {
+  // If this update suspends, don't hide the already displayed content
+  startTransition(() => {
+    setCurrentPage(currentPage + 1);
+  });
+}
+```
+
+这将避免隐藏现有内容。然而，任何新渲染的 `Suspense` 边界仍然会立即显示退路方案（`fallback`），以避免阻塞 UI 并让用户在内容可用时看到内容。
+
+React 只会在非紧急更新期间阻止不必要的退路方案（`fallback`）。这意味着它不会阻止紧急更新的退路方案（`fallback`）。你必须使用 `startTransition` 或 `useDeferredValue` 这样的 API 来选择性的优化。
+
+如果你的路由集成了 `Suspense`，*它将会自动将更新包装到 `startTransition` 中*。
