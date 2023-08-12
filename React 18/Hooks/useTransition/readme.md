@@ -656,3 +656,55 @@ return <input value={text} onChange={handleChange} />;
 这是因为转换是非阻塞的，但是在响应更改事件时更新输入应该是同步的。如果你想在输入时运行一个转换，有两个选项：
 1. 你可以声明两个分开的状态变量：一个用于输入状态（它总是同步更新），另一个用于在转换中更新的状态变量。这样，你可以使用同步状态控制输入，并将转换状态变量（它将“滞后”于输入）传递给其余的渲染逻辑。
 2. 或者，你可以有一个状态变量，并添加 `useDeferredValue`，它将“滞后”于实际值。它会自动触发非阻塞的重新渲染以“追赶”新值。
+
+### React 没有将我的状态更新视为转换
+当你在转换中包装一个状态更新时，请确保它发生在 `startTransition` 调用期间：
+```jsx
+startTransition(() => {
+  // ✅ Setting state *during* startTransition call
+  setPage('/about');
+});
+```
+
+传递给 `startTransition` 的函数必须是同步的。
+
+你不能像这样将更新标记为转换：
+```jsx
+startTransition(() => {
+  // ❌ Setting state *after* startTransition call
+  setTimeout(() => {
+    setPage('/about');
+  }, 1000);
+});
+```
+
+相反，你可以这样做：
+
+```jsx
+setTimeout(() => {
+  startTransition(() => {
+    // ✅ Setting state *during* startTransition call
+    setPage('/about');
+  });
+}, 1000);
+```
+
+类似地，你不能像这样将更新标记为转换：
+
+```jsx
+startTransition(async () => {
+  await someAsyncFunction();
+  // ❌ Setting state *after* startTransition call
+  setPage('/about');
+});
+```
+
+然而，使用以下方法可以正常工作：
+
+```jsx
+await someAsyncFunction();
+startTransition(() => {
+  // ✅ Setting state *during* startTransition call
+  setPage('/about');
+});
+```
