@@ -408,3 +408,91 @@ export default function TabButton({ children, isActive, onClick }) {
 }
 ```
 
+### 避免不必要的加载指示器
+在这个例子中，`PostsTab` 组件使用启用了 `Suspense-enabled` 的数据源获取一些数据。当你单击“帖子”选项卡时，`PostsTab` 组件将 挂起，导致最近的加载占位符出现：
+
+#### App.js
+```jsx
+import { Suspense, useState } from 'react';
+import TabButton from './TabButton.js';
+import AboutTab from './AboutTab.js';
+import PostsTab from './PostsTab.js';
+import ContactTab from './ContactTab.js';
+
+export default function TabContainer() {
+  const [tab, setTab] = useState('about');
+  return (
+    <Suspense fallback={<h1>🌀 Loading...</h1>}>
+      <TabButton
+        isActive={tab === 'about'}
+        onClick={() => setTab('about')}
+      >
+        About
+      </TabButton>
+      <TabButton
+        isActive={tab === 'posts'}
+        onClick={() => setTab('posts')}
+      >
+        Posts
+      </TabButton>
+      <TabButton
+        isActive={tab === 'contact'}
+        onClick={() => setTab('contact')}
+      >
+        Contact
+      </TabButton>
+      <hr />
+      {tab === 'about' && <AboutTab />}
+      {tab === 'posts' && <PostsTab />}
+      {tab === 'contact' && <ContactTab />}
+    </Suspense>
+  );
+}
+```
+
+#### TabButton.js
+```jsx
+export default function TabButton({ children, isActive, onClick }) {
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  return (
+    <button onClick={() => {
+      onClick();
+    }}>
+      {children}
+    </button>
+  );
+}
+```
+
+隐藏整个选项卡容器以显示加载指示符会导致用户体验不连贯。如果你将 `useTransition` 添加到 `TabButton` 中，你可以改为在选项卡按钮中指示待处理状态。
+
+请注意，现在单击“帖子”不再用一个旋转器替换整个选项卡容器：
+
+#### TabButton.js
+```jsx
+import { useTransition } from 'react';
+
+export default function TabButton({ children, isActive, onClick }) {
+  const [isPending, startTransition] = useTransition();
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  if (isPending) {
+    return <b className="pending">{children}</b>;
+  }
+  return (
+    <button onClick={() => {
+      startTransition(() => {
+        onClick();
+      });
+    }}>
+      {children}
+    </button>
+  );
+}
+```
+
+### 注意
+转换效果只会“等待”足够长的时间来避免隐藏 已经显示 的内容（例如选项卡容器）。如果“帖子”选项卡具有一个嵌套 <Suspense> 边界，转换效果将不会“等待”它。
