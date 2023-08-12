@@ -494,5 +494,165 @@ export default function TabButton({ children, isActive, onClick }) {
 }
 ```
 
-### 注意
+#### 注意
 转换效果只会“等待”足够长的时间来避免隐藏 已经显示 的内容（例如选项卡容器）。如果“帖子”选项卡具有一个嵌套 <Suspense> 边界，转换效果将不会“等待”它。
+
+### 构建一个Suspense-enabled 的路由 
+如果你正在构建一个 React 框架或路由，我们建议将页面导航标记为转换效果。
+
+```jsx
+function Router() {
+    const [page, setPage] = useState('/');
+    const [isPending, startTransition] = useTransition();
+
+    function navigate(url) {
+        startTransition(() => {
+            setPage(url);
+        });
+    }
+
+    // ...
+}
+```
+
+这么做有两个好处：
++ 转换效果是可中断的，这样用户可以在等待重新渲染完成之前点击其他地方。
++ 转换效果可以防止不必要的加载指示符，这样用户就可以避免在导航时产生不协调的跳转。
+
+下面是一个简单的使用转换效果进行页面导航的路由器示例：
+
+#### App.js
+```jsx
+import { Suspense, useState, useTransition } from 'react';
+import IndexPage from './IndexPage.js';
+import ArtistPage from './ArtistPage.js';
+import Layout from './Layout.js';
+
+export default function App() {
+  return (
+    <Suspense fallback={<BigSpinner />}>
+      <Router />
+    </Suspense>
+  );
+}
+
+function Router() {
+  const [page, setPage] = useState('/');
+  const [isPending, startTransition] = useTransition();
+
+  function navigate(url) {
+    startTransition(() => {
+      setPage(url);
+    });
+  }
+
+  let content;
+  if (page === '/') {
+    content = (
+      <IndexPage navigate={navigate} />
+    );
+  } else if (page === '/the-beatles') {
+    content = (
+      <ArtistPage
+        artist={{
+          id: 'the-beatles',
+          name: 'The Beatles',
+        }}
+      />
+    );
+  }
+  return (
+    <Layout isPending={isPending}>
+      {content}
+    </Layout>
+  );
+}
+
+function BigSpinner() {
+  return <h2>🌀 Loading...</h2>;
+}
+```
+
+#### Layout.js
+```jsx
+export default function Layout({ children, isPending }) {
+  return (
+    <div className="layout">
+      <section className="header" style={{
+        opacity: isPending ? 0.7 : 1
+      }}>
+        Music Browser
+      </section>
+      <main>
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+#### IndexPage.js
+```jsx
+export default function IndexPage({ navigate }) {
+  return (
+    <button onClick={() => navigate('/the-beatles')}>
+      Open The Beatles artist page
+    </button>
+  );
+}
+```
+
+#### ArtistPage.js
+```jsx
+import { Suspense } from 'react';
+import Albums from './Albums.js';
+import Biography from './Biography.js';
+import Panel from './Panel.js';
+
+export default function ArtistPage({ artist }) {
+  return (
+    <>
+      <h1>{artist.name}</h1>
+      <Biography artistId={artist.id} />
+      <Suspense fallback={<AlbumsGlimmer />}>
+        <Panel>
+          <Albums artistId={artist.id} />
+        </Panel>
+      </Suspense>
+    </>
+  );
+}
+
+function AlbumsGlimmer() {
+  return (
+    <div className="glimmer-panel">
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+      <div className="glimmer-line" />
+    </div>
+  );
+}
+```
+
+#### Suspense-enabled 的路由默认情况下会将页面导航更新包装成转换效果。
+
+## 疑难解答
+### 在转换过程中更新输入无法正常工作 
+
+你不能使用转换来控制输入的状态变量：
+```jsx
+const [text, setText] = useState('');
+// ...
+function handleChange(e) {
+  // ❌ Can't use transitions for controlled input state
+  startTransition(() => {
+    setText(e.target.value);
+  });
+}
+// ...
+return <input value={text} onChange={handleChange} />;
+```
+
+这是因为转换是非阻塞的，但是在响应更改事件时更新输入应该是同步的。如果你想在输入时运行一个转换，有两个选项：
+1. 你可以声明两个分开的状态变量：一个用于输入状态（它总是同步更新），另一个用于在转换中更新的状态变量。这样，你可以使用同步状态控制输入，并将转换状态变量（它将“滞后”于输入）传递给其余的渲染逻辑。
+2. 或者，你可以有一个状态变量，并添加 `useDeferredValue`，它将“滞后”于实际值。它会自动触发非阻塞的重新渲染以“追赶”新值。
