@@ -284,3 +284,127 @@ export default function TabContainer() {
   );
 }
 ```
+
+### 在转换中更新父组件 
+你也可以通过 `useTransition` 调用来更新父组件的状态。例如，`TabButton` 组件在一个转换中包装了它的 `onClick` 逻辑：
+
+```jsx
+export default function TabButton({ children, isActive, onClick }) {
+  const [isPending, startTransition] = useTransition();
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  return (
+    <button onClick={() => {
+      startTransition(() => {
+        onClick();
+      });
+    }}>
+      {children}
+    </button>
+  );
+}
+```
+
+因为父组件在 `onClick` 事件处理程序内更新了它的状态，所以该状态更新被标记为一个转换。这就是为什么，就像之前的例子一样，你可以单击“帖子”，然后立即单击“联系人”。更新选定选项卡被标记为一个转换，因此它不会阻止用户交互。
+
+### App.js
+```jsx
+import { useState } from 'react';
+import TabButton from './TabButton.js';
+import AboutTab from './AboutTab.js';
+import PostsTab from './PostsTab.js';
+import ContactTab from './ContactTab.js';
+
+export default function TabContainer() {
+  const [tab, setTab] = useState('about');
+  return (
+    <>
+      <TabButton
+        isActive={tab === 'about'}
+        onClick={() => setTab('about')}
+      >
+        About
+      </TabButton>
+      <TabButton
+        isActive={tab === 'posts'}
+        onClick={() => setTab('posts')}
+      >
+        Posts (slow)
+      </TabButton>
+      <TabButton
+        isActive={tab === 'contact'}
+        onClick={() => setTab('contact')}
+      >
+        Contact
+      </TabButton>
+      <hr />
+      {tab === 'about' && <AboutTab />}
+      {tab === 'posts' && <PostsTab />}
+      {tab === 'contact' && <ContactTab />}
+    </>
+  );
+}
+```
+
+### TabButton.js
+```
+import { useTransition } from 'react';
+
+export default function TabButton({ children, isActive, onClick }) {
+  const [isPending, startTransition] = useTransition();
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  return (
+    <button onClick={() => {
+      startTransition(() => {
+        onClick();
+      });
+    }}>
+      {children}
+    </button>
+  );
+}
+```
+
+### 在转换期间显示待处理的视觉状态 
+你可以使用 `useTransition` 返回的 `isPending` 布尔值来向用户指示转换正在进行中。例如，选项卡按钮可以有一个特殊的“待处理”视觉状态：
+
+```jsx
+function TabButton({ children, isActive, onClick }) {
+    const [isPending, startTransition] = useTransition();
+    // ...
+    if (isPending) {
+        return <b className="pending">{children}</b>;
+    }
+    // ...
+}
+```
+
+请注意，现在单击“帖子”感觉更加灵敏，因为选项卡按钮本身立即更新了：
+
+#### TabButton.js
+```jsx
+import { useTransition } from 'react';
+
+export default function TabButton({ children, isActive, onClick }) {
+  const [isPending, startTransition] = useTransition();
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  if (isPending) {
+    return <b className="pending">{children}</b>;
+  }
+  return (
+    <button onClick={() => {
+      startTransition(() => {
+        onClick();
+      });
+    }}>
+      {children}
+    </button>
+  );
+}
+```
+
