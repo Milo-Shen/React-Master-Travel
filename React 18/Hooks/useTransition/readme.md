@@ -105,3 +105,182 @@ function TabContainer() {
 ##  `useTransition` 和常规 `state` update 的区别
 
 ### 第 1 个示例 共 2 个挑战: 在转换状态中更新当前选项卡 
+
+在此示例中，“文章”选项卡被 *人为地减慢*，以便至少需要一秒钟才能呈现。
+
+单击“文章”，然后立即单击“联系人”。请注意，这会中断“文章”的缓慢渲染。 “联系人”选项卡立即显示。因为此状态更新被标记为转换状态，因此缓慢的重新渲染不会冻结用户界面。
+
+#### App.js
+```jsx
+import { useState, useTransition } from 'react';
+import TabButton from './TabButton.js';
+import AboutTab from './AboutTab.js';
+import PostsTab from './PostsTab.js';
+import ContactTab from './ContactTab.js';
+
+export default function TabContainer() {
+  const [isPending, startTransition] = useTransition();
+  const [tab, setTab] = useState('about');
+
+  function selectTab(nextTab) {
+    startTransition(() => {
+      setTab(nextTab);      
+    });
+  }
+
+  return (
+    <>
+      <TabButton
+        isActive={tab === 'about'}
+        onClick={() => selectTab('about')}
+      >
+        About
+      </TabButton>
+      <TabButton
+        isActive={tab === 'posts'}
+        onClick={() => selectTab('posts')}
+      >
+        Posts (slow)
+      </TabButton>
+      <TabButton
+        isActive={tab === 'contact'}
+        onClick={() => selectTab('contact')}
+      >
+        Contact
+      </TabButton>
+      <hr />
+      {tab === 'about' && <AboutTab />}
+      {tab === 'posts' && <PostsTab />}
+      {tab === 'contact' && <ContactTab />}
+    </>
+  );
+}
+```
+
+#### TabButton.js
+```jsx
+import { useTransition } from 'react';
+
+export default function TabButton({ children, isActive, onClick }) {
+  if (isActive) {
+    return <b>{children}</b>
+  }
+  return (
+    <button onClick={() => {
+      onClick();
+    }}>
+      {children}
+    </button>
+  )
+}
+```
+
+#### AboutTab.js
+```jsx
+export default function AboutTab() {
+    return (
+        <p>Welcome to my profile!</p>
+    );
+}
+```
+
+#### PostsTab.js
+```jsx
+import { memo } from 'react';
+
+const PostsTab = memo(function PostsTab() {
+  // Log once. The actual slowdown is inside SlowPost.
+  console.log('[ARTIFICIALLY SLOW] Rendering 500 <SlowPost />');
+
+  let items = [];
+  for (let i = 0; i < 500; i++) {
+    items.push(<SlowPost key={i} index={i} />);
+  }
+  return (
+    <ul className="items">
+      {items}
+    </ul>
+  );
+});
+
+function SlowPost({ index }) {
+  let startTime = performance.now();
+  while (performance.now() - startTime < 1) {
+    // Do nothing for 1 ms per item to emulate extremely slow code
+  }
+
+  return (
+    <li className="item">
+      Post #{index + 1}
+    </li>
+  );
+}
+
+export default PostsTab;
+```
+
+#### ContactTab.js
+```jsx
+export default function ContactTab() {
+  return (
+    <>
+      <p>
+        You can find me online here:
+      </p>
+      <ul>
+        <li>admin@mysite.com</li>
+        <li>+123456789</li>
+      </ul>
+    </>
+  );
+}
+```
+
+### 第 2 个示例 共 2 个挑战: 在不使用转换状态的情况下更新当前选项卡
+
+在此示例中，“帖子”选项卡同样被 *人为地减慢*，以便至少需要一秒钟才能渲染。与之前的示例不同，这个状态更新 *不是一个转换状态*。
+
+点击“帖子”，然后立即点击“联系人”。请注意，应用程序在渲染减速选项卡时会冻结，UI变得不响应。这个状态更新 *不是一个转换状态*，所以慢速的重新渲染会冻结用户界面。
+
+```jsx
+import { useState } from 'react';
+import TabButton from './TabButton.js';
+import AboutTab from './AboutTab.js';
+import PostsTab from './PostsTab.js';
+import ContactTab from './ContactTab.js';
+
+export default function TabContainer() {
+  const [tab, setTab] = useState('about');
+
+  function selectTab(nextTab) {
+    setTab(nextTab);
+  }
+
+  return (
+    <>
+      <TabButton
+        isActive={tab === 'about'}
+        onClick={() => selectTab('about')}
+      >
+        About
+      </TabButton>
+      <TabButton
+        isActive={tab === 'posts'}
+        onClick={() => selectTab('posts')}
+      >
+        Posts (slow)
+      </TabButton>
+      <TabButton
+        isActive={tab === 'contact'}
+        onClick={() => selectTab('contact')}
+      >
+        Contact
+      </TabButton>
+      <hr />
+      {tab === 'about' && <AboutTab />}
+      {tab === 'posts' && <PostsTab />}
+      {tab === 'contact' && <ContactTab />}
+    </>
+  );
+}
+```
