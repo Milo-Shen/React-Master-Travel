@@ -708,3 +708,40 @@ startTransition(() => {
   setPage('/about');
 });
 ```
+
+### 我想在组件外部调用 `useTransition`
+你不能在组件外部调用 `useTransition`，因为它是一个 Hook。在这种情况下，请改用独立的 `startTransition` 方法。它的工作方式相同，但不提供 `isPending` 指示器。
+
+### 我传递给 startTransition 的函数会立即执行 
+如果你运行这段代码，它将会打印 1, 2, 3：
+
+```jsx
+console.log(1);
+startTransition(() => {
+  console.log(2);
+  setPage('/about');
+});
+console.log(3);
+```
+
+*期望打印 1, 2, 3*。 传递给 `startTransition` 的函数不会被延迟执行。与浏览器的 `setTimeout` 不同，它不会延迟执行回调。React 会立即执行你的函数，但是在它运行的同时安排的任何状态更新都被标记为转换。你可以将其想象为以下方式
+
+```jsx
+// A simplified version of how React works
+
+let isInsideTransition = false;
+
+function startTransition(scope) {
+  isInsideTransition = true;
+  scope();
+  isInsideTransition = false;
+}
+
+function setState() {
+  if (isInsideTransition) {
+    // ... schedule a transition state update ...
+  } else {
+    // ... schedule an urgent state update ...
+  }
+}
+```
