@@ -81,9 +81,69 @@ const Greeting = memo(function Greeting({ name }) {
 *实践中，你可以通过遵循一些原则来使许多 memoization 变得不必要：*
 1. 当一个组件在视觉上包裹其他组件时，让它 接受 JSX 作为子组件。这样，当包装组件更新其自身状态时，React 知道其子组件不需要重新渲染。
 2. 优先使用局部状态，并且不要将 状态提升 到不必要的层级。例如，不要将短暂状态（如表单数据和项元素是否 `hover` 状态）保留在树的顶部或全局状态库中。
-3. 保持你的 渲染逻辑纯粹。如果重新渲染组件会导致问题或产生一些明显的视觉瑕疵，则这是你组件中的 bug！修复 bug 而不是添加 memoization。
+3. 保持你的 渲染逻辑纯粹。如果重新渲染组件会导即使一个组件被记忆化了，当它自身的状态发生变化时，它仍然会重新渲染。memoization 只与从父组件传递给组件的 props 有关。致问题或产生一些明显的视觉瑕疵，则这是你组件中的 bug！修复 bug 而不是添加 memoization。
 4. 避免 不必要的 Effect 来更新状态。React 应用中的大多数性能问题都是由于 Effect 引起的更新链，这些 Effect 会使你的组件一次又一次地重新渲染。
 5. 尝试 从你的 Effect 中删除不必要的依赖项。例如，与其使用 memoization，不如将某些对象或函数移动到 Effect 内部或组件外部，这通常更简单。
 
 如果特定交互仍然感觉不流畅，请 使用 React 开发者工具 profiler 来查看哪些组件最需要 memoization，并在需要时添加 memoization。这些原则使你的组件更易于调试和理解，因此建议在任何情况下都遵循它们。从长远来看，我们正在研究 自动进行细粒度 memoization，以解决这个问题。
 
+### 使用 state 更新记忆化（memoized）组件 
+即使一个组件被记忆化了，当它自身的状态发生变化时，它仍然会重新渲染。memoization 只与从父组件传递给组件的 props 有关。
+
+```jsx
+import { memo, useState } from 'react';
+
+export default function MyApp() {
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  return (
+    <>
+      <label>
+        Name{': '}
+        <input value={name} onChange={e => setName(e.target.value)} />
+      </label>
+      <label>
+        Address{': '}
+        <input value={address} onChange={e => setAddress(e.target.value)} />
+      </label>
+      <Greeting name={name} />
+    </>
+  );
+}
+
+const Greeting = memo(function Greeting({ name }) {
+  console.log('Greeting was rendered at', new Date().toLocaleTimeString());
+  const [greeting, setGreeting] = useState('Hello');
+  return (
+    <>
+      <h3>{greeting}{name && ', '}{name}!</h3>
+      <GreetingSelector value={greeting} onChange={setGreeting} />
+    </>
+  );
+});
+
+function GreetingSelector({ value, onChange }) {
+  return (
+    <>
+      <label>
+        <input
+          type="radio"
+          checked={value === 'Hello'}
+          onChange={e => onChange('Hello')}
+        />
+        Regular greeting
+      </label>
+      <label>
+        <input
+          type="radio"
+          checked={value === 'Hello and welcome'}
+          onChange={e => onChange('Hello and welcome')}
+        />
+        Enthusiastic greeting
+      </label>
+    </>
+  );
+}
+```
+
+如果将 state 变量设置为其当前值，即使没有使用 `memo`，React 也会跳过重新渲染组件。你仍然可能会看到额外地调用组件函数，但其结果将被丢弃。
