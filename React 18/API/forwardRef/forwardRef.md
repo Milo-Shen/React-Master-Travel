@@ -304,3 +304,155 @@ const MyInput = forwardRef((props, ref) => {
 
 export default MyInput;
 ```
+
+### 暴露一个命令式句柄而不是 DOM 节点 
+可以使用一个被称为 命令式句柄（`imperative handle`） 的自定义对象来暴露一个更加受限制的方法集，而不是暴露整个 DOM 节点。为了实现这个目的，你需要定义一个单独的 `ref` 来存储 DOM 节点：
+
+```jsx
+const MyInput = forwardRef(function MyInput(props, ref) {
+  const inputRef = useRef(null);
+
+  // ...
+
+  return <input {...props} ref={inputRef} />;
+});
+```
+
+将收到的 `ref` 传递给 `useImperativeHandle` 并指定你想要暴露给 `ref` 的值：
+
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+
+const MyInput = forwardRef(function MyInput(props, ref) {
+  const inputRef = useRef(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      focus() {
+        inputRef.current.focus();
+      },
+      scrollIntoView() {
+        inputRef.current.scrollIntoView();
+      },
+    };
+  }, []);
+
+  return <input {...props} ref={inputRef} />;
+});
+```
+
+如果某个组件得到了 `MyInput` 的 `ref`，则只会接收到 `{ focus, scrollIntoView }` 对象，而不是整个 DOM 节点。这可以让 DOM 节点暴露的信息限制到最小。
+
+##### App.js
+```jsx
+import { useRef } from 'react';
+import MyInput from './MyInput.js';
+
+export default function Form() {
+  const ref = useRef(null);
+
+  function handleClick() {
+    ref.current.focus();
+    // 这行代码不起作用，因为 DOM 节点没有被暴露出来：
+    // ref.current.style.opacity = 0.5;
+  }
+
+  return (
+    <form>
+      <MyInput label="Enter your name:" ref={ref} />
+      <button type="button" onClick={handleClick}>
+        Edit
+      </button>
+    </form>
+  );
+}
+```
+
+##### MyInput.js
+```jsx
+import { forwardRef, useRef, useImperativeHandle } from 'react';
+
+const MyInput = forwardRef(function MyInput(props, ref) {
+  const inputRef = useRef(null);
+
+  useImperativeHandle(ref, () => {
+    return {
+      focus() {
+        inputRef.current.focus();
+      },
+      scrollIntoView() {
+        inputRef.current.scrollIntoView();
+      },
+    };
+  }, []);
+
+  return <input {...props} ref={inputRef} />;
+});
+
+export default MyInput;
+```
+
+## 陷阱
+不要滥用 `refs`。只有对于作为 `props` 无法表达的 命令式 行为才应该使用 `ref`：例如滚动到节点、将焦点放在节点上、触发动画，以及选择文本等等。
+
+如果可以将某些东西使用 `props` 表达，那就不应该使用 `ref`。例如，不要从一个 `Modal` 组件中暴露一个命令式的句柄，如 `{ open, close }`，更好的做法是像这样使用 `isOpen` 作为一个像 `<Modal isOpen={isOpen} />` 的
+`prop`。`Effects` 可以帮助你通过 `props` 暴露命令式行为。
+
+## Troubleshooting 
+
+### 我的组件使用了 `forwardRef`，但是它的 `ref` 总是为 `null` 
+这通常意味着你忘记实际使用你所接收到的 `ref` 了。
+
+例如，这个组件的 `ref` 没有被使用：
+
+```jsx
+const MyInput = forwardRef(function MyInput({ label }, ref) {
+  return (
+    <label>
+      {label}
+      <input />
+    </label>
+  );
+});
+```
+
+为了修复它，将 `ref` 传递给一个可以接受 `ref` 的 DOM 节点或另一个组件：
+
+```jsx
+const MyInput = forwardRef(function MyInput({ label }, ref) {
+  return (
+    <label>
+      {label}
+      <input ref={ref} />
+    </label>
+  );
+});
+```
+
+如果某些逻辑是有条件的，`MyInput` 的 `ref` 可能也会为 `null`。
+
+```jsx
+const MyInput = forwardRef(function MyInput({ label, showInput }, ref) {
+  return (
+    <label>
+      {label}
+      {showInput && <input ref={ref} />}
+    </label>
+  );
+});
+```
+
+如果 `showInput` 是 `false`，则 `ref` 将不会被转发到任何节点，并且 `MyInput` 的 `ref` 会保持为空。如果这个条件隐藏在另一个组件中，那么很容易忽略这一点，比如这个例子中的 `Panel`：
+
+```jsx
+const MyInput = forwardRef(function MyInput({ label, showInput }, ref) {
+  return (
+    <label>
+      {label}
+      <Panel isExpanded={showInput}>
+        <input ref={ref} />
+      </Panel>
+    </label>
+  );
+});
+```
