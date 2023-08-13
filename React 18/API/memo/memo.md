@@ -147,3 +147,39 @@ function GreetingSelector({ value, onChange }) {
 ```
 
 如果将 state 变量设置为其当前值，即使没有使用 `memo`，React 也会跳过重新渲染组件。你仍然可能会看到额外地调用组件函数，但其结果将被丢弃。
+
+### 使用 context 更新记忆化（memoized）组件 
+即使组件已被记忆化，当其使用的 `context` 发生变化时，它仍将重新渲染。记忆化只与从父组件传递给组件的 `props` 有关。
+
+```jsx
+import { createContext, memo, useContext, useState } from 'react';
+
+const ThemeContext = createContext(null);
+
+export default function MyApp() {
+  const [theme, setTheme] = useState('dark');
+
+  function handleClick() {
+    setTheme(theme === 'dark' ? 'light' : 'dark'); 
+  }
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      <button onClick={handleClick}>
+        Switch theme
+      </button>
+      <Greeting name="Taylor" />
+    </ThemeContext.Provider>
+  );
+}
+
+const Greeting = memo(function Greeting({ name }) {
+  console.log("Greeting was rendered at", new Date().toLocaleTimeString());
+  const theme = useContext(ThemeContext);
+  return (
+    <h3 className={theme}>Hello, {name}!</h3>
+  );
+});
+```
+
+为了使组件仅在 `context` 的 *某个部分* 发生更改时重新渲染，请将组件分为两个部分。在外层组件中从 `context` 中读取所需内容，并将其作为 `props` 传递给记忆化的子组件。
