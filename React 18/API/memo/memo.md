@@ -236,3 +236,31 @@ const CallToAction = memo(function CallToAction({ hasGroups }) {
 
 当你需要将一个函数传递给记忆化（memoized）组件时，要么在组件外声明它，以确保它永远不会改变，要么使用 `useCallback` 在重新渲染之间缓存其定义。
 
+### 指定自定义比较函数 
+在极少数情况下，最小化 memoized 组件的 `props` 更改可能是不可行的。在这种情况下，你可以提供一个自定义比较函数，React 将使用它来比较旧的和新的 `props`，而不是使用浅比较。这个函数作为 `memo` 的第二个参数传递。它应该仅在新的 `props` `与旧的` props 具有相同的输出时返回 `true`；否则应该返回 `false`。
+
+```jsx
+const Chart = memo(function Chart({ dataPoints }) {
+  // ...
+}, arePropsEqual);
+
+function arePropsEqual(oldProps, newProps) {
+  return (
+    oldProps.dataPoints.length === newProps.dataPoints.length &&
+    oldProps.dataPoints.every((oldPoint, index) => {
+      const newPoint = newProps.dataPoints[index];
+      return oldPoint.x === newPoint.x && oldPoint.y === newPoint.y;
+    })
+  );
+}
+```
+
+如果这样做，请使用浏览器开发者工具中的性能面板来确保你的比较函数实际上比重新渲染组件要快。你可能会因此感到惊讶。
+
+*在进行性能测量时，请确保 React 处于生产模式下运行。*
+
+### 陷阱
+如果你提供了一个自定义的 `arePropsEqual` 实现，*你必须比较每个 `prop`，包括函数*。函数通常 闭包 了父组件的 `props` 和 `state`。如果你在 `oldProps.onClick !== newProps.onClick` 时返回 `true`，你的组件将在其 `onClick` 处理函数中继续“看到”来自先前渲染的 `props` 和 `state`，导致非常令人困惑的 bug。
+
+避免在 `arePropsEqual` 中进行深比较，除非你 100％ 确定你正在处理的数据结构具有已知有限的深度。*深比较可能会变得非常缓慢*，并且如果有人稍后更改数据结构，这可能会卡住你的应用数秒钟。
+
