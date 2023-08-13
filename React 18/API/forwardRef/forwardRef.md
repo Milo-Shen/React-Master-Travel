@@ -109,3 +109,95 @@ function Form() {
 
 请记住，将组件内部的 `ref` 暴露给 DOM 节点会使得在稍后更改组件内部更加困难。通常，你会将 DOM 节点从可重用的低级组件中暴露出来，例如按钮或文本输入框，但不会在应用程序级别的组件中这样做，例如头像或评论。
 
+### Examples of forwarding a ref
+
+#### 第 1 个示例 共 2 个挑战: 聚焦文本输入框 
+点击该按钮将聚焦输入框。`Form` 组件定义了一个 `ref` 并将其传递到 `MyInput` 组件。`MyInput` 组件将该 `ref` 转发至浏览器的 `<input>` 标签，这使得 `Form` 组件可以聚焦该 `<input>`。
+
+##### App.js
+```jsx
+import { useRef } from 'react';
+import MyInput from './MyInput.js';
+
+export default function Form() {
+  const ref = useRef(null);
+
+  function handleClick() {
+    ref.current.focus();
+  }
+
+  return (
+    <form>
+      <MyInput label="Enter your name:" ref={ref} />
+      <button type="button" onClick={handleClick}>
+        Edit
+      </button>
+    </form>
+  );
+}
+```
+
+##### MyInput.js
+```
+import { forwardRef } from 'react';
+
+const MyInput = forwardRef(function MyInput(props, ref) {
+  const { label, ...otherProps } = props;
+  return (
+    <label>
+      {label}
+      <input {...otherProps} ref={ref} />
+    </label>
+  );
+});
+
+export default MyInput;
+```
+
+#### 第 2 个示例 共 2 个挑战: 播放和暂停视频 
+点击按钮将调用 `<video>` DOM 节点上的 `play()` 和 `pause()` 方法。App 组件定义了一个 `ref` 并将其传递到 `MyVideoPlayer` 组件。`MyVideoPlayer` 组件将该 `ref` 转发到浏览器的 `<video>` 标签。这使得 `App` 组件可以播放和暂停 `<video>`。
+
+##### App.js
+```jsx
+import { useRef } from 'react';
+import MyVideoPlayer from './MyVideoPlayer.js';
+
+export default function App() {
+  const ref = useRef(null);
+  return (
+    <>
+      <button onClick={() => ref.current.play()}>
+        Play
+      </button>
+      <button onClick={() => ref.current.pause()}>
+        Pause
+      </button>
+      <br />
+      <MyVideoPlayer
+        ref={ref}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+        type="video/mp4"
+        width="250"
+      />
+    </>
+  );
+}
+```
+
+##### MyVideoPlayer.js
+```jsx
+import { forwardRef } from 'react';
+
+const VideoPlayer = forwardRef(function VideoPlayer({ src, type, width }, ref) {
+  return (
+    <video width={width} ref={ref}>
+      <source
+        src={src}
+        type={type}
+      />
+    </video>
+  );
+});
+
+export default VideoPlayer;
+```
