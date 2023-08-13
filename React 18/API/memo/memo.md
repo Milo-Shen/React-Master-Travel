@@ -183,3 +183,56 @@ const Greeting = memo(function Greeting({ name }) {
 ```
 
 为了使组件仅在 `context` 的 *某个部分* 发生更改时重新渲染，请将组件分为两个部分。在外层组件中从 `context` 中读取所需内容，并将其作为 `props` 传递给记忆化的子组件。
+
+### 最小化 props 的变化 
+当你使用 `memo` 时，只要任何一个 `prop` 与先前的值不是 浅层相等 的话，你的组件就会重新渲染。这意味着 React 会使用 `Object.is` 比较组件中的每个 `prop` 与其先前的值。注意，`Object.is(3, 3)` 为 `true`，但 `Object.is({}, {})` 为 `false`。
+
+为了最大化使用 `memo` 的效果，应该尽量减少 `props` 的变化次数。例如，如果 `props` 是一个对象，可以使用 `useMemo` 避免父组件每次都重新创建该对象：
+
+```jsx
+function Page() {
+  const [name, setName] = useState('Taylor');
+  const [age, setAge] = useState(42);
+
+  const person = useMemo(
+    () => ({ name, age }),
+    [name, age]
+  );
+
+  return <Profile person={person} />;
+}
+
+const Profile = memo(function Profile({ person }) {
+  // ...
+});
+```
+
+最小化 `props` 的改变的更好的方法是确保组件在其 `props` 中接受必要的最小信息。例如，它可以接受单独的值而不是整个对象：
+
+```jsx
+function Page() {
+  const [name, setName] = useState('Taylor');
+  const [age, setAge] = useState(42);
+  return <Profile name={name} age={age} />;
+}
+
+const Profile = memo(function Profile({ name, age }) {
+  // ...
+});
+```
+
+即使是单个值有时也可以投射为不经常变更的值。例如，这里的组件接受一个布尔值，表示是否存在某个值，而不是值本身：
+
+```jsx
+function GroupsLanding({ person }) {
+  const hasGroups = person.groups !== null;
+  return <CallToAction hasGroups={hasGroups} />;
+}
+
+const CallToAction = memo(function CallToAction({ hasGroups }) {
+  // ...
+});
+```
+
+当你需要将一个函数传递给记忆化（memoized）组件时，要么在组件外声明它，以确保它永远不会改变，要么使用 `useCallback` 在重新渲染之间缓存其定义。
+
