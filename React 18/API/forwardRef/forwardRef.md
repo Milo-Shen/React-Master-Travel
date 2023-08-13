@@ -201,3 +201,106 @@ const VideoPlayer = forwardRef(function VideoPlayer({ src, type, width }, ref) {
 
 export default VideoPlayer;
 ```
+
+### 在多个组件中转发 ref 
+除了将 `ref` 转发到 DOM 节点外，你还可以将其转发到你自己的组件，例如 `MyInput` 组件：
+
+```jsx
+const FormField = forwardRef(function FormField(props, ref) {
+  // ...
+  return (
+    <>
+      <MyInput ref={ref} />
+      ...
+    </>
+  );
+});
+```
+
+如果 `MyInput` 组件将 `ref` 转发给它的 `<input>`，那么 `FormField` 的 `ref` 将会获得该 `<input>`：
+
+```jsx
+function Form() {
+  const ref = useRef(null);
+
+  function handleClick() {
+    ref.current.focus();
+  }
+
+  return (
+    <form>
+      <FormField label="Enter your name:" ref={ref} isRequired={true} />
+      <button type="button" onClick={handleClick}>
+        Edit
+      </button>
+    </form>
+  );
+}
+```
+
+`Form` 组件定义了一个 `ref` 并将其传递给 `FormField`。`FormField` 组件将该 `ref` 转发给 `MyInput`，后者又将其转发给浏览器的 `<input>` DOM 节点。这就是 `Form` 获取该 DOM 节点的方式。
+
+##### App.js
+```jsx
+import { useRef } from 'react';
+import FormField from './FormField.js';
+
+export default function Form() {
+  const ref = useRef(null);
+
+  function handleClick() {
+    ref.current.focus();
+  }
+
+  return (
+    <form>
+      <FormField label="Enter your name:" ref={ref} isRequired={true} />
+      <button type="button" onClick={handleClick}>
+        Edit
+      </button>
+    </form>
+  );
+}
+```
+
+##### FormField.js
+```jsx
+import { forwardRef, useState } from 'react';
+import MyInput from './MyInput.js';
+
+const FormField = forwardRef(function FormField({ label, isRequired }, ref) {
+    const [value, setValue] = useState('');
+    return (
+        <>
+            <MyInput
+                ref={ref}
+                label={label}
+                value={value}
+                onChange={e => setValue(e.target.value)}
+            />
+            {(isRequired && value === '') &&
+                <i>Required</i>
+            }
+        </>
+    );
+});
+
+export default FormField;
+```
+
+##### MyInput.js
+```jsx
+import { forwardRef } from 'react';
+
+const MyInput = forwardRef((props, ref) => {
+  const { label, ...otherProps } = props;
+  return (
+    <label>
+      {label}
+      <input {...otherProps} ref={ref} />
+    </label>
+  );
+});
+
+export default MyInput;
+```
