@@ -378,3 +378,15 @@ export default function Form() {
 ```
 
 这里，`MyInput` 中的 `realInputRef` 保存了实际的 `input` DOM 节点。 但是，`useImperativeHandle` 指示 React 将你自己指定的对象作为父组件的 `ref` 值。 所以 `Form` 组件内的 `inputRef.current` 将只有 `focus` 方法。在这种情况下，`ref` “句柄”不是 DOM 节点，而是你在 `useImperativeHandle` 调用中创建的自定义对象。
+
+### React 何时添加 `refs` 
+在 React 中，每次更新都分为 两个阶段：
++ 在 *渲染* 阶段， React 调用你的组件来确定屏幕上应该显示什么。
++ 在 *提交* 阶段， React 把变更应用于 DOM。
+
+通常，你 不希望 在渲染期间访问 `refs`。这也适用于保存 DOM 节点的 `refs`。在第一次渲染期间，DOM 节点尚未创建，因此 `ref.current` 将为 `null`。在渲染更新的过程中，DOM 节点还没有更新。所以读取它们还为时过早。
+
+React 在提交阶段设置 `ref.current`。在更新 DOM 之前，React 将受影响的 `ref.current` 值设置为 `null`。更新 DOM 后，React 立即将它们设置到相应的 DOM 节点。
+
+通常，你将从事件处理器访问 `refs`。 如果你想使用 `ref` 执行某些操作，但没有特定的事件可以执行此操作，你可能需要一个 `effect`。我们将在下一页讨论 `effect`。
+
