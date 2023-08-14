@@ -1,0 +1,257 @@
+# 使用 ref 操作 DOM
+由于 React 会自动处理更新 DOM 以匹配你的渲染输出，因此你在组件中通常不需要操作 DOM。但是，有时你可能需要访问由 React 管理的 DOM 元素 —— 例如，让一个节点获得焦点、滚动到它或测量它的尺寸和位置。在 React 中没有内置的方法来做这些事情，所以你需要一个指向 DOM 节点的 `ref` 来实现。
+
+## 你将会学习到
++ 如何使用 `ref` 属性访问由 React 管理的 DOM 节点
++ `ref` JSX 属性如何与 `useRef` Hook 相关联
++ 如何访问另一个组件的 DOM 节点
++ 在哪些情况下修改 React 管理的 DOM 是安全的
+
+### 获取指向节点的 `ref` 
+要访问由 React 管理的 DOM 节点，首先，引入 `useRef` Hook：
+
+```jsx
+import { useRef } from 'react';
+```
+
+然后，在你的组件中使用它声明一个 `ref`：
+
+```jsx
+const myRef = useRef(null);
+```
+
+最后，把你的 `ref` 作为 `ref` 属性传递给 JSX 标签，你想要得到它的 DOM 节点:
+
+```jsx
+<div ref={myRef}>
+```
+
+`useRef` Hook 返回一个对象，该对象有一个名为 `current` 的属性。最初，`myRef.current` 是 `null`。当 React 为这个 `<div>` 创建一个 DOM 节点时，React 会把对该节点的引用放入 `myRef.current`。然后，你可以从 事件处理器 访问此 DOM 节点，并使用在其上定义的内置浏览器 API。
+
+```jsx
+// 你可以使用任意浏览器 API，例如：
+myRef.current.scrollIntoView();
+```
+
+#### 示例: 使文本输入框获得焦点 
+在本例中，单击按钮将使输入框获得焦点：
+
+```jsx
+import { useRef } from 'react';
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <input ref={inputRef} />
+      <button onClick={handleClick}>
+        聚焦输入框
+      </button>
+    </>
+  );
+}
+```
+
+要实现这一点：
+1. 使用 `useRef` Hook 声明 `inputRef`。
+2. 像 `<input ref={inputRef}>` 这样传递它。这告诉 React 将这个 `<input>` 的 DOM 节点放入 `inputRef.current`。
+3. 在 `handleClick` 函数中，从 `inputRef.current` 读取 `input` DOM 节点并使用 `inputRef.current.focus()` 调用它的 `focus(`)。
+4. 用 `onClick` 将 `handleClick` 事件处理器传递给 `<button>`。
+
+虽然 DOM 操作是 `ref` 最常见的用例，但 `useRef` Hook 可用于存储 React 之外的其他内容，例如计时器 ID 。与 `state` 类似，`ref` 能在渲染之间保留。你甚至可以将 `ref` 视为设置它们时不会触发重新渲染的 `state` 变量！你可以在使用 Ref 引用值中了解有关 `ref` 的更多信息。
+
+#### 示例: 滚动至一个元素 
+一个组件中可以有多个 `ref`。在这个例子中，有一个由三张图片和三个按钮组成的轮播，点击按钮会调用浏览器的 `scrollIntoView()` 方法，在相应的 DOM 节点上将它们居中显示在视口中：
+
+```jsx
+import { useRef } from 'react';
+
+export default function CatFriends() {
+  const firstCatRef = useRef(null);
+  const secondCatRef = useRef(null);
+  const thirdCatRef = useRef(null);
+
+  function handleScrollToFirstCat() {
+    firstCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }
+
+  function handleScrollToSecondCat() {
+    secondCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }
+
+  function handleScrollToThirdCat() {
+    thirdCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }
+
+  return (
+    <>
+      <nav>
+        <button onClick={handleScrollToFirstCat}>
+          Tom
+        </button>
+        <button onClick={handleScrollToSecondCat}>
+          Maru
+        </button>
+        <button onClick={handleScrollToThirdCat}>
+          Jellylorum
+        </button>
+      </nav>
+      <div>
+        <ul>
+          <li>
+            <img
+              src="https://placekitten.com/g/200/200"
+              alt="Tom"
+              ref={firstCatRef}
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/300/200"
+              alt="Maru"
+              ref={secondCatRef}
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/250/200"
+              alt="Jellylorum"
+              ref={thirdCatRef}
+            />
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+}
+```
+
+#### 如何使用 ref 回调管理 ref 列表 
+在上面的例子中，`ref` 的数量是预先确定的。但有时候，你可能需要为列表中的每一项都绑定 `ref` ，而你又不知道会有多少项。像下面这样做是行不通的：
+
+```jsx
+<ul>
+  {items.map((item) => {
+    // 行不通！
+    const ref = useRef(null);
+    return <li ref={ref} />;
+  })}
+</ul>
+```
+
+这是因为 Hook 只能在组件的顶层被调用。不能在循环语句、条件语句或 `map()` 函数中调用 `useRef` 。
+
+一种可能的解决方案是用一个 `ref` 引用其父元素，然后用 DOM 操作方法如 `querySelectorAll` 来寻找它的子节点。然而，这种方法很脆弱，如果 DOM 结构发生变化，可能会失效或报错。
+
+另一种解决方案是将函数传递给 `ref` 属性。这称为 `ref` 回调。当需要设置 `ref` 时，React 将传入 DOM 节点来调用你的 `ref` 回调，并在需要清除它时传入 `null` 。这使你可以维护自己的数组或 `Map`，并通过其索引或某种类型的 ID 访问任何 `ref`。
+
+此示例展示了如何使用此方法滚动到长列表中的任意节点：
+
+```jsx
+import { useRef } from 'react';
+
+export default function CatFriends() {
+  const itemsRef = useRef(null);
+
+  function scrollToId(itemId) {
+    const map = getMap();
+    const node = map.get(itemId);
+    node.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }
+
+  function getMap() {
+    if (!itemsRef.current) {
+      // 首次运行时初始化 Map。
+      itemsRef.current = new Map();
+    }
+    return itemsRef.current;
+  }
+
+  return (
+    <>
+      <nav>
+        <button onClick={() => scrollToId(0)}>
+          Tom
+        </button>
+        <button onClick={() => scrollToId(5)}>
+          Maru
+        </button>
+        <button onClick={() => scrollToId(9)}>
+          Jellylorum
+        </button>
+      </nav>
+      <div>
+        <ul>
+          {catList.map(cat => (
+            <li
+              key={cat.id}
+              ref={(node) => {
+                const map = getMap();
+                if (node) {
+                  map.set(cat.id, node);
+                } else {
+                  map.delete(cat.id);
+                }
+              }}
+            >
+              <img
+                src={cat.imageUrl}
+                alt={'Cat #' + cat.id}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+const catList = [];
+for (let i = 0; i < 10; i++) {
+  catList.push({
+    id: i,
+    imageUrl: 'https://placekitten.com/250/200?image=' + i
+  });
+}
+```
+
+在这个例子中，`itemsRef` 保存的不是单个 DOM 节点，而是保存了包含列表项 ID 和 DOM 节点的 `Map`。(Ref 可以保存任何值！) 每个列表项上的 `ref` 回调负责更新 Map：
+
+```jsx
+<li
+  key={cat.id}
+  ref={node => {
+    const map = getMap();
+    if (node) {
+      // 添加到 Map
+      map.set(cat.id, node);
+    } else {
+      // 从 Map 删除
+      map.delete(cat.id);
+    }
+  }}
+>
+```
+
+这使你可以之后从 Map 读取单个 DOM 节点。
