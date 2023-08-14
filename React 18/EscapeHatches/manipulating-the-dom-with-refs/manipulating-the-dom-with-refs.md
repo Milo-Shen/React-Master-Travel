@@ -33,7 +33,7 @@ const myRef = useRef(null);
 myRef.current.scrollIntoView();
 ```
 
-#### 示例: 使文本输入框获得焦点 
+### 示例: 使文本输入框获得焦点 
 在本例中，单击按钮将使输入框获得焦点：
 
 ```jsx
@@ -65,7 +65,7 @@ export default function Form() {
 
 虽然 DOM 操作是 `ref` 最常见的用例，但 `useRef` Hook 可用于存储 React 之外的其他内容，例如计时器 ID 。与 `state` 类似，`ref` 能在渲染之间保留。你甚至可以将 `ref` 视为设置它们时不会触发重新渲染的 `state` 变量！你可以在使用 Ref 引用值中了解有关 `ref` 的更多信息。
 
-#### 示例: 滚动至一个元素 
+### 示例: 滚动至一个元素 
 一个组件中可以有多个 `ref`。在这个例子中，有一个由三张图片和三个按钮组成的轮播，点击按钮会调用浏览器的 `scrollIntoView()` 方法，在相应的 DOM 节点上将它们居中显示在视口中：
 
 ```jsx
@@ -143,7 +143,7 @@ export default function CatFriends() {
 }
 ```
 
-#### 如何使用 ref 回调管理 ref 列表 
+### 如何使用 ref 回调管理 ref 列表 
 在上面的例子中，`ref` 的数量是预先确定的。但有时候，你可能需要为列表中的每一项都绑定 `ref` ，而你又不知道会有多少项。像下面这样做是行不通的：
 
 ```jsx
@@ -255,3 +255,84 @@ for (let i = 0; i < 10; i++) {
 ```
 
 这使你可以之后从 Map 读取单个 DOM 节点。
+
+### 访问另一个组件的 DOM 节点
+
+当你将 `ref` 放在像 `<input />` 这样输出浏览器元素的内置组件上时，React 会将该 `ref` 的 `current` 属性设置为相应的 DOM 节点（例如浏览器中实际的 `<input />` ）。
+
+但是，如果你尝试将 `ref` 放在 你自己的 组件上，例如 `<MyInput /`>，默认情况下你会得到 `null`。这个示例演示了这种情况。请注意单击按钮 并不会 聚焦输入框：
+
+```jsx
+import { useRef } from 'react';
+
+function MyInput(props) {
+  return <input {...props} />;
+}
+
+export default function MyForm() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current?.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>
+        聚焦输入框
+      </button>
+    </>
+  );
+}
+```
+
+为了帮助您注意到这个问题，React 还会向控制台打印一条错误消息：
+
+```
+Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+```
+
+发生这种情况是因为默认情况下，React 不允许组件访问其他组件的 DOM 节点。甚至自己的子组件也不行！这是故意的。Refs 是一个应急方案，应该谨慎使用。手动操作 另一个 组件的 DOM 节点会使你的代码更加脆弱。
+
+相反，想要 暴露其 DOM 节点的组件必须选择该行为。一个组件可以指定将它的 `ref` “转发”给一个子组件。下面是 `MyInput` 如何使用 `forwardRef` API：
+
+```jsx
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+```
+
+它是这样工作的:
+1. `<MyInput ref={inputRef} />` 告诉 React 将对应的 DOM 节点放入 `inputRef.current` 中。但是，这取决于 `MyInput` 组件是否允许这种行为， 默认情况下是不允许的。
+2. `MyInput` 组件是使用 `forwardRef` 声明的。 这让从上面接收的 `inputRef` 作为第二个参数 `ref` 传入组件，第一个参数是 `props` 。
+3. `MyInput` 组件将自己接收到的 `ref` 传递给它内部的 `<input>`。
+
+现在，单击按钮聚焦输入框起作用了：
+
+```jsx
+import { forwardRef, useRef } from 'react';
+
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>
+        聚焦输入框
+      </button>
+    </>
+  );
+}
+```
+
+在设计系统中，将低级组件（如按钮、输入框等）的 `ref` 转发到它们的 DOM 节点是一种常见模式。另一方面，像表单、列表或页面段落这样的高级组件通常不会暴露它们的 DOM 节点，以避免对 DOM 结构的意外依赖。
