@@ -235,3 +235,122 @@ export default function App() {
     // ...
   }, []);
 ```
+
+你会发现 React 报错：`React Hook useEffect has a missing dependency: 'isPlaying'`：
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('调用 video.play()');
+      ref.current.play();
+    } else {
+      console.log('调用 video.pause()');
+      ref.current.pause();
+    }
+  }, []); // 这将产生错误
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input value={text} onChange={e => setText(e.target.value)} />
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+```
+
+问题出现在 Effect 中使用了 `isPlaying` prop 以控制逻辑，但又没有直接告诉 Effect 需要依赖这个属性。为了解决这个问题，将 `isPlaying` 添加至依赖数组中：
+
+```jsx
+  useEffect(() => {
+    if (isPlaying) { // isPlaying 在此处使用……
+      // ...
+    } else {
+      // ...
+    }
+  }, [isPlaying]); // ……所以它必须在此处声明！
+```
+
+现在所有的依赖都已经声明，所以没有错误了。指定 `[isPlaying]` 会告诉 React，如果 `isPlaying` 在上一次渲染时与当前相同，它应该跳过重新运行 Effect。通过这个改变，输入框的输入不会导致 Effect 重新运行，但是按下播放/暂停按钮会重新运行 Effect。
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('Calling video.play()');
+      ref.current.play();
+    } else {
+      console.log('Calling video.pause()');
+      ref.current.pause();
+    }
+  }, [isPlaying]);
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input value={text} onChange={e => setText(e.target.value)} />
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+```
+
+依赖数组可以包含多个依赖项。当指定的所有依赖项在上一次渲染期间的值与当前值完全相同时，React 会跳过重新运行该 Effect。React 使用 Object.is 比较依赖项的值。有关详细信息，请参阅 useEffect 参考文档。
+
+*请注意，不能随意选择依赖项*。如果你指定的依赖项不能与 Effect 代码所期望的相匹配时，lint 将会报错，这将帮助你找到代码中的问题。如果你希望重复执行，那么你应当 重新编辑 Effect 代码本身，使其不需要该依赖项。
+
+### 陷阱
+没有依赖数组作为第二个参数，与依赖数组位空数组 `[]` 的行为是不一致的：
+
+```jsx
+useEffect(() => {
+  // 这里的代码会在每次渲染后执行
+});
+```
+
+```jsx
+useEffect(() => {
+  // 这里的代码只会在组件挂载后执行
+}, []);
+```
+
+```jsx
+useEffect(() => {
+  //这里的代码只会在每次渲染后，并且 a 或 b 的值与上次渲染不一致时执行
+}, [a, b]);
+```
+
+接下来，我们将进一步介绍什么是 *挂载（mount）*。
+
+### 为什么依赖数组中可以省略 ref? 
