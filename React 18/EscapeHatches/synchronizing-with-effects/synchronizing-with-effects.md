@@ -183,3 +183,55 @@ useEffect(() => {
 
 每次渲染结束都会执行 Effect；而更新 `state` 会触发重新渲染。但是新一轮渲染时又会再次执行 Effect，然后 Effect 再次更新 `state`…… 如此周而复始，从而陷入死循环。
 Effect 通常应该使组件与 外部 系统保持同步。如果没有外部系统，你只想根据其他状态调整一些状态，那么 你也许不需要 Effect。
+
+### 第二步：指定 Effect 依赖 
+一般来说，Effect 会在 *每次* 渲染时执行。*但更多时候，并不需要每次渲染的时候都执行 Effect*。
++ 有时这会拖慢运行速度。因为与外部系统的同步操作总是有一定时耗，在非必要时可能希望跳过它。例如，没有人会希望每次用键盘打字时都重新连接聊天服务器。
++ 有时这会导致程序逻辑错误。例如，组件的淡入动画只需要在第一轮渲染出现时播放一次，而不是每次触发新一轮渲染后都播放。
+
+为了演示这个问题，我们在前面的示例中加入一些 `console.log` 语句和更新父组件 `state` 的文本输入。请注意键入是如何导致 Effect 重新运行的：
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('调用 video.play()');
+      ref.current.play();
+    } else {
+      console.log('调用 video.pause()');
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input value={text} onChange={e => setText(e.target.value)} />
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? '暂停' : '播放'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+```
+
+将 *依赖数组* 传入 `useEffect` 的第二个参数，以告诉 React 跳过不必要地重新运行 Effect。在上面示例的第 14 行中传入一个空数组 `[]`：
+
+```jsx
+  useEffect(() => {
+    // ...
+  }, []);
+```
