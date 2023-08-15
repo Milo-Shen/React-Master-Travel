@@ -133,3 +133,53 @@ function VideoPlayer({ src, isPlaying }) {
 当 `VideoPlayer` 组件渲染时（无论是否为首次渲染），都会发生以下事情。首先，React 会刷新屏幕，确保 `<video>` 元素已经正确地出现在 DOM 中；然后，React 将运行 Effect；最后，Effect 将根据 `isPlaying` 的值调用 `play()` 或 `pause()`。
 
 试试按下几次播放和暂停操作，观察视频播放器的播放、暂停行为是如何与 `isPlaying` prop 同步的：
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  return (
+    <>
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? '暂停' : '播放'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+```
+
+在这个示例中，你同步到 React `state` 的“外部系统”是浏览器媒体 API；也可以使用类似的方法将旧的非 React 代码（如 jQuery 插件）封装成声明性的 React 组件。
+
+请注意，控制视频播放器在实际应用中复杂得多：比如调用 `play()` 可能会失败，用户可能会使用内置浏览器控件播放或暂停等等。这只是一个简化了很多具体细节的例子。
+
+### 陷阱
+一般来说，Effect 会在 *每次* 渲染后执行，*而以下代码会陷入死循环中*：
+
+```jsx
+const [count, setCount] = useState(0);
+useEffect(() => {
+  setCount(count + 1);
+});
+```
+
+每次渲染结束都会执行 Effect；而更新 `state` 会触发重新渲染。但是新一轮渲染时又会再次执行 Effect，然后 Effect 再次更新 `state`…… 如此周而复始，从而陷入死循环。
+Effect 通常应该使组件与 外部 系统保持同步。如果没有外部系统，你只想根据其他状态调整一些状态，那么 你也许不需要 Effect。
