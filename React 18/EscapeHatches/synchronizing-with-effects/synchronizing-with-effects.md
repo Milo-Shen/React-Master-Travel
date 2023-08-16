@@ -354,3 +354,35 @@ useEffect(() => {
 接下来，我们将进一步介绍什么是 *挂载（mount）*。
 
 ### 为什么依赖数组中可以省略 ref? 
+下面的 Effect 同时使用了 `ref` 与 `isPlaying` prop，但是只有 `isPlaying` 被声明为了依赖项：
+
+```jsx
+function VideoPlayer({ src, isPlaying }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (isPlaying) {
+            ref.current.play();
+        } else {
+            ref.current.pause();
+        }
+    }, [isPlaying]);
+}
+```
+
+这是因为 `ref` 具有 稳定 的标识：React 保证 每轮渲染中调用 `useRef` 所产生的引用对象时，获取到的对象引用总是相同的，即获取到的对象引用永远不会改变，所以它不会导致重新运行 Effect。因此，依赖数组中是否包含它并不重要。当然也可以包括它，这样也可以：
+
+```jsx
+function VideoPlayer({ src, isPlaying }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (isPlaying) {
+            ref.current.play();
+        } else {
+            ref.current.pause();
+        }
+    }, [isPlaying, ref]);
+}
+```
+
+`useState` 返回的 `set` 函数 也有稳定的标识符，所以也可以把它从依赖数组中忽略掉。如果在忽略某个依赖项时 linter 不会报错，那么这么做就是安全的。
+但是，仅在 linter 可以“看到”对象稳定时，忽略稳定依赖项的规则才会起作用。例如，如果 `ref` 是从父组件传递的，则必须在依赖项数组中指定它。这样做是合适的，因为无法确定父组件是否始终是传递相同的 `ref`，或者可能是有条件地传递几个 `ref` 之一。因此，你的 Effect 将取决于传递的是哪个 `ref`。
