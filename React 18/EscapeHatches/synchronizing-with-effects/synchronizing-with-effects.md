@@ -386,3 +386,104 @@ function VideoPlayer({ src, isPlaying }) {
 
 `useState` 返回的 `set` 函数 也有稳定的标识符，所以也可以把它从依赖数组中忽略掉。如果在忽略某个依赖项时 linter 不会报错，那么这么做就是安全的。
 但是，仅在 linter 可以“看到”对象稳定时，忽略稳定依赖项的规则才会起作用。例如，如果 `ref` 是从父组件传递的，则必须在依赖项数组中指定它。这样做是合适的，因为无法确定父组件是否始终是传递相同的 `ref`，或者可能是有条件地传递几个 `ref` 之一。因此，你的 Effect 将取决于传递的是哪个 `ref`。
+
+### 第三部：按需添加清理（cleanup）函数 
+考虑一个不同的例子。你正在编写一个 `ChatRoom` 组件，该组件出现时需要连接到聊天服务器。现在为你提供了 `createConnection()` API，该 API 返回一个包含 `connect()` 与 `disconnection()` 方法的对象。考虑当组件展示给用户时，应该如何保持连接？
+
+从编写 `Effect` 逻辑开始：
+
+```jsx
+useEffect(() => {
+  const connection = createConnection();
+  connection.connect();
+});
+```
+
+每次重新渲染后连接到聊天室会很慢，因此可以添加依赖数组：
+
+```jsx
+useEffect(() => {
+  const connection = createConnection();
+  connection.connect();
+}, []);
+```
+
+在这个例子中，Effect 中的代码没有使用任何 `props` 或 `state`，此时指定依赖数组为空数组 `[]`。这告诉 React 仅在组件“挂载”时运行此代码，即首次出现在屏幕上这一阶段。
+
+试试运行下面的代码：
+
+#### App.js
+```jsx
+import { useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+  }, []);
+  return <h1>欢迎来到聊天室！</h1>;
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection() {
+  // 真实的实现会将其连接到服务器，此处代码只是示例
+  return {
+    connect() {
+      console.log('✅ 连接中……');
+    },
+    disconnect() {
+      console.log('❌ 连接断开。');
+    }
+  };
+}
+```
+
+这里的 Effect 仅在组件挂载时执行，所以 "✅ 连接中……" 在控制台中只会打印一次。然而控制台实际打印 "✅ 连接中……" 了两次！为什么会这样？
+
+想象 `ChatRoom` 组件是一个大规模的 App 中许多界面中的一部分。用户切换到含有 `ChatRoom` 组件的页面上时，该组件被挂载，并调用 `connection.connect()` 方法连接服务器。然后想象用户此时突然导航到另一个页面，比如切换到“设置”页面。这时，`ChatRoom` 组件就被卸载了。接下来，用户在“设置”页面忙完后，单击“返回”，回到上一个页面，并再次挂载 `ChatRoom`。这将建立第二次连接，但是，第一次时创建的连接从未被销毁！当用户在应用程序中不断切换界面再返回时，与服务器的连接会不断堆积。
+
+如果不进行大量的手动测试，这样的错误很容易被遗漏。为了帮助你快速发现它们，在开发环境中，React 会在初始挂载组件后，立即再挂载一次。
+
+观察到 "✅ 连接中……" 出现了两次，可以帮助找到问题所在：在代码中，组件被卸载时没有关闭连接。
+
+为了解决这个问题，可以在 Effect 中返回一个 *清理（cleanup）* 函数。
+
+```jsx
+useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, []);
+```
+
+每次重新执行 Effect 之前，React 都会调用清理函数；组件被卸载时，也会调用清理函数。让我们看看执行清理函数会做些什么：
+
+#### App.js
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+  return <h1>欢迎来到聊天室！</h1>;
+}
+```
+
+现在在开发模式下，控制台会打印三条记录：
+1. "✅ 连接中……"
+2. "❌ 连接断开。"
+3. "✅ 连接中……"
+
+*在开发环境下，出现这样的结果才是符合预期的。*重复挂载组件，可以确保在 React 中离开和返回页面时不会导致代码运行出现问题。上面的代码中规定了挂载组件时连接服务器、卸载组件时断连服务器。所以断开、连接再重新连接是符合预期的行为。当为 Effect 正确实现清理函数时，无论 Effect 执行一次，还是执行、清理、再执行，用户都不会感受到明显的差异。所以，在开发环境下，出现额外的连接、断连时，这是 React 正在调试你的代码。这是很正常的现象，不要试图消除它！
+
+*在生产环境下，"✅ 连接中……" 只会被打印一次。*也就是说仅在开发环境下才会重复挂载组件，以帮助你找到需要清理的 Effect。你可以选择关闭 严格模式 来关闭开发环境下特有的行为，但我们建议保留它。这可以帮助发现许多上面这样的错误。
