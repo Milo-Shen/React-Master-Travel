@@ -488,9 +488,34 @@ export default function ChatRoom() {
 
 *在生产环境下，"✅ 连接中……" 只会被打印一次。* 也就是说仅在开发环境下才会重复挂载组件，以帮助你找到需要清理的 Effect。你可以选择关闭 严格模式 来关闭开发环境下特有的行为，但我们建议保留它。这可以帮助发现许多上面这样的错误。
 
-### 如何处理在开发环境中 Effect 执行两次？ 
+## 如何处理在开发环境中 Effect 执行两次？ 
 在开发环境中，React 有意重复挂载你的组件，以查找像上面示例中的错误。*正确的态度是“如何修复 Effect 以便它在重复挂载后能正常工作”，而不是“如何只运行一次 Effect”。*
 
 通常的解决办法是实现清理函数。清理函数应该停止或撤销 Effect 正在执行的任何操作。简单来说，用户不应该感受到 Effect 只执行一次（如在生产环境中）和执行“挂载 → 清理 → 挂载”过程（如在开发环境中）之间的差异。
 
 下面提供一些常用的 Effect 应用模式。
+
+### 控制非 React 组件 
+有时需要添加不是使用 React 编写的 UI 小部件。例如，假设你要向页面添加地图组件，并且它有一个 `setZoomLevel()` 方法，你希望调整缩放级别（zoom level）并与 React 代码中的 `zoomLevel` `state` 变量保持同步。Effect 看起来应该与下面类似：
+
+```jsx
+useEffect(() => {
+  const map = mapRef.current;
+  map.setZoomLevel(zoomLevel);
+}, [zoomLevel]);
+```
+
+请注意，在这种情况下不需要清理。在开发环境中，React 会调用 Effect 两次，但这两次挂载时依赖项 setZoomLevel 都是相同的，所以会跳过执行第二次挂载时的 Effect。开发环境中它可能会稍微慢一些，但这问题不大，因为它在生产中不会进行不必要的重复挂载。
+
+某些 API 可能不允许连续调用两次。例如，内置的 `<dialog>` 元素的 `showModal` 方法在连续调用两次时会抛出异常，此时实现清理函数并使其关闭对话框：
+
+```jsx
+useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog.showModal();
+    return () => dialog.close();
+}, []);
+```
+
+在开发环境中，Effect 将调用 `showModal()`，然后立即调用 `close()`，然后再次调用 `showModal()`。这与调用只一次 `showModal()` 的效果相同。也正如在生产环境中看到的那样。
+
