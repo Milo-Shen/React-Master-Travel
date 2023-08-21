@@ -534,3 +534,54 @@ useEffect(() => {
 
 在开发环境中，Effect 会调用 `addEventListener()`，然后立即调用 `removeEventListener()`，然后再调用相同的 `addEventListener()`，这与只订阅一次事件的 Effect 等效；这也与用户在生产环境中只调用一次 `addEventListener()` 具有相同的感知效果。
 
+### 触发动画 
+如果 Effect 对某些内容加入了动画，清理函数应将动画重置：
+
+```jsx
+useEffect(() => {
+  const node = ref.current;
+  node.style.opacity = 1; // 触发动画
+  return () => {
+    node.style.opacity = 0; // 重置为初始值
+  };
+}, []);
+```
+
+在开发环境中，透明度由 1 变为 0，再变为 1。这与在生产环境中，直接将其设置为 1 具有相同的感知效果，如果你使用支持过渡的第三方动画库，你的清理函数应将时间轴重置为其初始状态。
+
+### 获取数据 
+如果 Effect 将会获取数据，清理函数应该要么 中止该数据获取操作，要么忽略其结果：
+
+```jsx
+useEffect(() => {
+  let ignore = false;
+
+  async function startFetching() {
+    const json = await fetchTodos(userId);
+    if (!ignore) {
+      setTodos(json);
+    }
+  }
+
+  startFetching();
+
+  return () => {
+    ignore = true;
+  };
+}, [userId]);
+```
+
+我们无法撤消已经发生的网络请求，但是清理函数应当确保获取数据的过程以及获取到的结果不会继续影响程序运行。如果 `userId` 从 `'Alice'` 变为 `'Bob'`，那么请确保 `'Alice'` 响应数据被忽略，即使它在 `'Bob'` 之后到达。
+
+*在开发环境中，浏览器调试工具的“网络”选项卡中会出现两个 fetch 请求。* 这是正常的。使用上述方法，第一个 Effect 将立即被清理，而 `ignore` 将被设置为 `true`。因此，即使有额外的请求，由于有 `if (!ignore)` 判断检查，也不会影响程序状态。
+
+*在生产环境中，只会显示发送了一条获取请求。* 如果开发环境中，第二次请求给你造成了困扰，最好的方法是使用一种可以删除重复请求、并缓存请求响应的解决方案：
+
+```jsx
+function TodoList() {
+    const todos = useSomeDataLibrary(`/api/user/${userId}/todos`);
+    // ...
+}
+```
+
+这不仅可以提高开发体验，还可以让你的应用程序速度更快。例如，用户按下按钮时，如果数据已经被缓存了，那么就不必再次等待加载。你可以自己构建这样的缓存，也可以使用很多在 Effect 中手动加载数据的替代方法。
