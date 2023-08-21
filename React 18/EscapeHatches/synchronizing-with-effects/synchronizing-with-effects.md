@@ -651,3 +651,56 @@ useEffect(() => {
 ```
 
 *这个例子说明如果重新挂载破坏了程序的逻辑，则通常含有未被发现的错误。*从用户的角度来看，访问这个页面的效果，与访问该页面时单击和页面中其他链接并按下后退没有什么不同。React 通过在开发环境中重复挂载组件来验证组件是否遵守此原则。
+
+## 总结 
+下面的 playground 可以帮助你在实践中找到对 Effect 的感觉。
+
+这个例子使用 `setTimeout` 来安排控制台日志，在 Effect 运行后三秒钟显示输入文本。清理函数会取消挂起的超时。从按下“挂载组件”开始：
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function Playground() {
+  const [text, setText] = useState('a');
+
+  useEffect(() => {
+    function onTimeout() {
+      console.log('⏰ ' + text);
+    }
+
+    console.log('🔵 安排 "' + text + '" 日志');
+    const timeoutId = setTimeout(onTimeout, 3000);
+
+    return () => {
+      console.log('🟡 取消 "' + text + '" 日志');
+      clearTimeout(timeoutId);
+    };
+  }, [text]);
+
+  return (
+    <>
+      <label>
+        日志内容：{' '}
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+        />
+      </label>
+      <h1>{text}</h1>
+    </>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? '卸载' : '挂载'} 组件
+      </button>
+      {show && <hr />}
+      {show && <Playground />}
+    </>
+  );
+}
+```
