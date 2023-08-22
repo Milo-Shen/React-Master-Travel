@@ -714,3 +714,115 @@ export default function App() {
 最后，在上面的代码中注释掉清理函数，这样安排操作就不会被取消。尝试快速输入 `abcde`。你预期三秒钟内会发生什么？计时器安排内的 `console.log(text)` 会打印 最新 的 `text` 并产生五个 `abcde` 日志吗？验证你的直觉吧！
 
 三秒后，你应该看到一系列日志：`a`、`ab`、`abc`、`abcd` 与 `abcde`，而不是五个 `abcde`。每个 Effect 都会“捕获”其对应渲染的 `text` 值。`text` `state` 发生变化并不重要：来自 `text = 'ab'` 的渲染的 Effect 始终会得到 `'ab'`。换句话说，每个渲染的 Effect 都是相互隔离的。如果你对这是如何工作的感到好奇，你可以阅读有关 闭包 的内容。
+
+### 每一轮渲染都有自己的 Effect
+
+你可以将 `useEffect` 认为其将一段行为“附加”到渲染输出。考虑这种情况：
+
+```jsx
+export default function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>欢迎来到 {roomId}！</h1>;
+}
+```
+
+让我们看看当用户在应用程序中切换页面时到底发生了什么。
+
+#### 初始渲染 
+用户访问 `<ChatRoom roomId="general" />`，在这里让我们 假设 `roomId` 的值为 `'general'` ：
+
+```jsx
+  // 首次渲染时的 JSX（roomId 为 "general"）
+  return <h1>欢迎来到 general！</h1>;
+```
+
+Effect 也是渲染输出的一部分。首次渲染的 Effect 变为：
+
+```jsx
+  //首先渲染时的 Effect（roomId 为 "general"）
+  () => {
+    const connection = createConnection('general');
+    connection.connect();
+    return () => connection.disconnect();
+  },
+  // 首次渲染时的依赖项（roomId 为 "general"）
+  ['general']
+```
+
+React 将会执行用于连接到 `'general'` 聊天室的 Effect。
+
+#### 依赖项相同时的重新渲染 
+让我们探讨下 `<ChatRoom roomId="general" />` 的重复渲染。JSX 的输出结果仍然相同：
+
+```jsx
+  // 第二次渲染时的 JSX（roomId 为 "general"）
+  return <h1>Welcome to general!</h1>;
+```
+
+React 看到渲染输出没有改变，所以它不会更新 DOM 。
+
+第二次渲染的 Effect 如下所示：
+
+```jsx
+  // 第二次渲染时的 Effect（roomId 为 "general"）
+  () => {
+    const connection = createConnection('general');
+    connection.connect();
+    return () => connection.disconnect();
+  },
+  // 第二次渲染时的依赖项（roomId 为 "general"）
+  ['general']
+```
+
+React 将第二次渲染时的 `['general']` 与第一次渲染时的 `['general']` 进行比较。因为所有的依赖项都是相同的，React 会忽略第二次渲染时的 Effect。所以此时 Effect 不会被调用。
+
+#### 依赖项不同时的重新渲染 
+接下来，用户开始访问 `<ChatRoom roomId="travel" />`。注意这里 `roomId` 的属性值改为了 `'travel'`，返回的是不同的 JSX 输出结果：
+
+```jsx
+  // 第三次渲染时的 JSX（roomId 为 "travel"）
+  return <h1>欢迎来到 travel！</h1>;
+```
+
+这时的 React 会更新 DOM ，将 `"欢迎来到 general"` 更新为 `"欢迎来到 travel"`。
+
+第三次渲染的 Effect 如下所示：
+
+```jsx
+  // 第三次渲染时的 Effect（roomId 为 "travel"）
+  () => {
+    const connection = createConnection('travel');
+    connection.connect();
+    return () => connection.disconnect();
+  },
+  // 第三次渲染时的依赖项（roomId 为 "travel"）
+  ['travel']
+```
+
+React 将第三次渲染时的 `['travel']` 与第二次渲染时的 `['general']` 相互比较。会发现依赖项不同：`Object.is('travel', 'general')` 为 `false`：所以这次的 Effect 不能跳过。
+
+在 React 执行第三次渲染的 Effect 之前，它需要清理最近渲染的 Effect。第二次渲染的 Effect 被跳过了。所以 React 需要清理第一次渲染时的 Effect。如果你回看第一次渲染的 Effect，你可以看到第一次渲染时的清理函数需要执行的内容，是在 `createConnection('general')` 所创建的连接上调用 `disconnect()`。也就是从 `'general'` 聊天室断开连接。
+
+之后，React 执行第三次渲染的 Effect。它连接到 `'travel'` 聊天室。
+
+#### 组件卸载 
+最后，假设用户离开了当前页面，`ChatRoom` 组件将被卸载时，React 会执行最近的 Effect 的清理函数，也就是第三次渲染时 Effect 的清理函数。第三次渲染后再清理时，清理函数破坏了 `createConnection('travel')` 方法创建的连接。因此，该应用程序与 `travel` 房间断开了连接。
+
+#### 仅开发环境下的行为 
+在 严格模式 下，React 在每次卸载组件后都会重新挂载组件（但是组件的 state 与 创建的 DOM 都会被保留）。它可以帮助你找出需要添加清理函数的 Effect，以及早暴露出像条件竞争那样的问题。此外，每当你在开发环境中保存更新代码文件时，React 也会重新挂载 Effect，不过这两种行为都仅限于开发环境。
+
+### 摘要
++ 与事件不同，Effect 是由渲染本身，而非特定交互引起的。
++ Effect 允许你将组件与某些外部系统（第三方 API、网络等）同步。
++ 默认情况下，Effect 在每次渲染（包括初始渲染）后运行。
++ 如果 React 的所有依赖项都与上次渲染时的值相同，则将跳过本次 Effect。
++ 不能随意选择依赖项，它们是由 Effect 内部的代码决定的。
++ 空的依赖数组（`[]`）对应于组件“挂载”，即添加到屏幕上。
++ 仅在严格模式下的开发环境中，React 会挂载两次组件，以对 Effect 进行压力测试。
++ 如果 Effect 因为重新挂载而中断，那么需要实现一个清理函数。
++ React 将在下次 Effect 运行之前以及卸载期间这两个时候调用清理函数。
