@@ -139,3 +139,43 @@ console.timeEnd('筛选数组');
 请注意，你的设备性能可能比用户的更好，因此最好通过人工限制工具来测试性能。例如，Chrome 提供了 CPU 节流 工具。
 
 同时需要注意的是，在开发环境测试性能并不能得到最准确的结果（例如，当开启 严格模式 时，你会看到每个组件渲染了两次，而不是一次）。所以为了得到最准确的时间，需要将你的应用构建为生产模式，同时使用与你的用户性能相当的设备进行测试。
+
+### 当 props 变化时重置所有 state
+`ProfilePage` 组件接收一个 prop：`userId`。页面上有一个评论输入框，你用了一个 state：`comment` 来保存它的值。有一天，你发现了一个问题：当你从一个人的个人资料导航到另一个时，`comment` 没有被重置。这导致很容易不小心把评论发送到不正确的个人资料。为了解决这个问题，你想在 `userId` 变化时，清除 `comment` 变量：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  const [comment, setComment] = useState('');
+
+  // 🔴 避免：当 prop 变化时，在 Effect 中重置 state
+  useEffect(() => {
+    setComment('');
+  }, [userId]);
+  // ...
+}
+```
+
+但这是低效的，因为 `ProfilePage` 和它的子组件首先会用旧值渲染，然后再用新值重新渲染。并且这样做也很复杂，因为你需要在 `ProfilePage` 里面 所有 具有 `state` 的组件中都写这样的代码。例如，如果评论区的 UI 是嵌套的，你可能也想清除嵌套的 comment `state`。
+
+取而代之的是，你可以通过为每个用户的个人资料组件提供一个明确的 `key` 来告诉 React 它们原则上是 不同 的个人资料组件。将你的组件拆分为两个组件，并从外部的组件传递一个 key 属性给内部的组件：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  return (
+    <Profile
+      userId={userId}
+      key={userId}
+    />
+  );
+}
+
+function Profile({ userId }) {
+  // ✅ 当 key 变化时，该组件内的 comment 或其他 state 会自动被重置
+  const [comment, setComment] = useState('');
+  // ...
+}
+```
+
+通常，当在相同的位置渲染相同的组件时，React 会保留状态。*通过将 `userId` 作为 `key` 传递给 `Profile` 组件，使  React 将具有不同 `userId` 的两个 `Profile` 组件视为两个不应共享任何状态的不同组件。* 每当 `key`（这里是 `userId`）变化时，React 将重新创建 DOM，并 重置 `Profile` 组件和它的所有子组件的 `state`。现在，当在不同的个人资料之间导航时，`comment` 区域将自动被清空。
+
+请注意，在这个例子中，只有外部的 `ProfilePage` 组件被导出并在项目中对其他文件可见。渲染 `ProfilePage` 的那些组件不用传递 `key` 给它：它们只需把 `userId` 作为常规 `prop` 传入即可。而 `ProfilePage` 将其作为 `key` 传递给内部的 `Profile` 组件是它的实现细节而已。
