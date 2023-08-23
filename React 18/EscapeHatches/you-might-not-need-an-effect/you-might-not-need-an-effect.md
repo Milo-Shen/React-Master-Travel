@@ -673,3 +673,111 @@ function ChatIndicator() {
 ```
 
 与手动使用 Effect 将可变数据同步到 React `state` 相比，这种方法能减少错误。通常，你可以写一个像上面的 `useOnlineStatus()` 这样的自定义 Hook，这样你就不需要在各个组件中重复写这些代码。阅读更多关于在 React 组件中订阅外部数据 `store` 的信息。
+
+### 获取数据 
+许多应用使用 Effect 来发起数据获取请求。像这样在 Effect 中写一个数据获取请求是相当常见的：
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    // 🔴 避免：没有清除逻辑的获取数据
+    fetchResults(query, page).then(json => {
+      setResults(json);
+    });
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+你 *不需要* 把这个数据获取逻辑迁移到一个事件处理函数中。
+
+这可能看起来与之前需要将逻辑放入事件处理函数中的示例相矛盾！但是，考虑到这并不是 键入事件，这是在这里获取数据的主要原因。搜索输入框的值经常从 URL 中预填充，用户可以在不关心输入框的情况下导航到后退和前进页面。
+
+`page` 和 `query` 的来源其实并不重要。只要该组件可见，你就需要通过当前 `page` 和 `query` 的值，保持 `results` 和网络数据的 同步。这就是为什么这里是一个 Effect 的原因。
+
+然而，上面的代码有一个问题。假设你快速地输入 `“hello”`。那么 query 会从 `“h”` 变成 `“he”`，`“hel”`，`“hell”` 最后是 `“hello”`。这会触发一连串不同的数据获取请求，但无法保证对应的返回顺序。例如，`“hell”` 的响应可能在 `“hello”` 的响应 之后 返回。由于它的 `setResults()` 是在最后被调用的，你将会显示错误的搜索结果。这种情况被称为 “竞态条件”：两个不同的请求 “相互竞争”，并以与你预期不符的顺序返回。
+
+*为了修复这个问题，你需要添加一个 清理函数 来忽略较早的返回结果：*
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    let ignore = false;
+    fetchResults(query, page).then(json => {
+      if (!ignore) {
+        setResults(json);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+这确保了当你在 Effect 中获取数据时，除了最后一次请求的所有返回结果都将被忽略。
+
+处理竞态条件并不是实现数据获取的唯一难点。你可能还需要考虑缓存响应结果（使用户点击后退按钮时可以立即看到先前的屏幕内容），如何在服务端获取数据（使服务端初始渲染的 HTML 中包含获取到的内容而不是加载动画），以及如何避免网络瀑布（使子组件不必等待每个父组件的数据获取完毕后才开始获取数据）。
+
+*这些问题适用于任何 UI 库，而不仅仅是 React。解决这些问题并不容易，这也是为什么现代 框架 提供了比在 Effect 中获取数据更有效的内置数据获取机制的原因。*
+
+如果你不使用框架（也不想开发自己的框架），但希望使从 Effect 中获取数据更符合人类直觉，请考虑像这个例子一样，将获取逻辑提取到一个自定义 Hook 中：
+
+```jsx
+function SearchResults({ query }) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ query, page });
+  const results = useData(`/api/search?${params}`);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(url)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setData(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [url]);
+  return data;
+}
+```
+
+你可能还想添加一些错误处理逻辑以及跟踪内容是否处于加载中。你可以自己编写这样的 Hook，也可以使用 React 生态中已经存在的许多解决方案。*虽然仅仅使用自定义 Hook 不如使用框架内置的数据获取机制高效，但将数据获取逻辑移动到自定义 Hook 中将使后续采用高效的数据获取策略更加容易*。
+
+一般来说，当你不得不编写 Effect 时，请留意是否可以将某段功能提取到专门的内置 API 或一个更具声明性的自定义 Hook 中，比如上面的 `useData`。你会发现组件中的原始 `useEffect` 调用越少，维护应用将变得更加容易。
+
+### 摘要
++ 如果你可以在渲染期间计算某些内容，则不需要使用 Effect。
++ 想要缓存昂贵的计算，请使用 `useMemo` 而不是 `useEffect`。
++ 想要重置整个组件树的 `state`，请传入不同的 `key`。
++ 想要在 `prop` 变化时重置某些特定的 `state`，请在渲染期间处理。
++ 组件 *显示* 时就需要执行的代码应该放在 Effect 中，否则应该放在事件处理函数中。
++ 如果你需要更新多个组件的 `state`，最好在单个事件处理函数中处理。
++ 当你尝试在不同组件中同步 `state` 变量时，请考虑状态提升。
++ 你可以使用 Effect 获取数据，但你需要实现清除逻辑以避免竞态条件。
