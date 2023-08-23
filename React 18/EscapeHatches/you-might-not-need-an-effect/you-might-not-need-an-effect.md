@@ -611,3 +611,65 @@ function Child({ data }) {
 ```
 
 这更简单，并且可以保持数据流的可预测性：数据从父组件流向子组件。
+
+### 订阅外部 store 
+
+有时候，你的组件可能需要订阅 React `state` 之外的一些数据。这些数据可能来自第三方库或内置浏览器 `API`。由于这些数据可能在 React 无法感知的情况下发变化，你需要在你的组件中手动订阅它们。这经常使用 Effect 来实现，例如：
+
+```jsx
+function useOnlineStatus() {
+  // 不理想：在 Effect 中手动订阅 store
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function updateState() {
+      setIsOnline(navigator.onLine);
+    }
+
+    updateState();
+
+    window.addEventListener('online', updateState);
+    window.addEventListener('offline', updateState);
+    return () => {
+      window.removeEventListener('online', updateState);
+      window.removeEventListener('offline', updateState);
+    };
+  }, []);
+  return isOnline;
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+这个组件订阅了一个外部的 store 数据（在这里，是浏览器的 `navigator.onLine` API）。由于这个 API 在服务端不存在（因此不能用于初始的 HTML），因此 `state` 最初被设置为 `true`。每当浏览器 `store` 中的值发生变化时，组件都会更新它的 `state`。
+
+尽管通常可以使用 Effect 来实现此功能，但 React 为此针对性地提供了一个 `Hook` 用于订阅外部 `store`。删除 Effect 并将其替换为调用 `useSyncExternalStore`：
+
+```jsx
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+function useOnlineStatus() {
+  // ✅ 非常好：用内置的 Hook 订阅外部 store
+  return useSyncExternalStore(
+    subscribe, // 只要传递的是同一个函数，React 不会重新订阅
+    () => navigator.onLine, // 如何在客户端获取值
+    () => true // 如何在服务端获取值
+  );
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+与手动使用 Effect 将可变数据同步到 React `state` 相比，这种方法能减少错误。通常，你可以写一个像上面的 `useOnlineStatus()` 这样的自定义 Hook，这样你就不需要在各个组件中重复写这些代码。阅读更多关于在 React 组件中订阅外部数据 `store` 的信息。
