@@ -572,3 +572,42 @@ function Toggle({ isOn, onChange }) {
 ```
 
 “状态提升” 允许父组件通过切换自身的 `state` 来完全控制 `Toggle` 组件。这意味着父组件会包含更多的逻辑，但整体上需要关心的状态变少了。每当你尝试保持两个不同的 `state` 变量之间的同步时，试试状态提升！
+
+### 将数据传递给父组件 
+`Child` 组件获取了一些数据并在 Effect 中传递给 `Parent` 组件：
+
+```jsx
+function Parent() {
+  const [data, setData] = useState(null);
+  // ...
+  return <Child onFetched={setData} />;
+}
+
+function Child({ onFetched }) {
+  const data = useSomeAPI();
+  // 🔴 避免：在 Effect 中传递数据给父组件
+  useEffect(() => {
+    if (data) {
+      onFetched(data);
+    }
+  }, [onFetched, data]);
+  // ...
+}
+```
+
+在 React 中，数据从父组件流向子组件。当你在屏幕上看到了一些错误时，你可以通过一路追踪组件树来寻找错误信息是从哪个组件传递下来的，从而找到传递了错误的 `prop` 或具有错误的 `state` 的组件。当子组件在 Effect 中更新其父组件的 `state` 时，数据流变得非常难以追踪。既然子组件和父组件都需要相同的数据，那么可以让父组件获取那些数据，并将其 向下传递 给子组件：
+
+```jsx
+function Parent() {
+  const data = useSomeAPI();
+  // ...
+  // ✅ 非常好：向子组件传递数据
+  return <Child data={data} />;
+}
+
+function Child({ data }) {
+  // ...
+}
+```
+
+这更简单，并且可以保持数据流的可预测性：数据从父组件流向子组件。
