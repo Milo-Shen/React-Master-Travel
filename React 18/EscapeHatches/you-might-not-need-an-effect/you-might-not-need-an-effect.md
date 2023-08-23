@@ -235,3 +235,53 @@ function List({ items }) {
 ```
 
 现在完全不需要 “调整” `state` 了。如果包含已选中 `ID` 的项出现在列表中，则仍然保持选中状态。如果没有找到匹配的项，则在渲染期间计算的 `selection` 将会是 `null`。行为不同了，但可以说更好了，因为大多数对 `items` 的更改仍可以保持选中状态。
+
+### 在事件处理函数中共享逻辑 
+假设你有一个产品页面，上面有两个按钮（购买和付款），都可以让你购买该产品。当用户将产品添加进购物车时，你想显示一个通知。在两个按钮的 `click` 事件处理函数中都调用 `showNotification()` 感觉有点重复，所以你可能想把这个逻辑放在一个 Effect 中：
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // 🔴 避免：在 Effect 中处理属于事件特定的逻辑
+  useEffect(() => {
+    if (product.isInCart) {
+      showNotification(`已添加 ${product.name} 进购物车！`);
+    }
+  }, [product]);
+
+  function handleBuyClick() {
+    addToCart(product);
+  }
+
+  function handleCheckoutClick() {
+    addToCart(product);
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+这个 Effect 是多余的。而且很可能会导致问题。例如，假设你的应用在页面重新加载之前 “记住” 了购物车中的产品。如果你把一个产品添加到购物车中并刷新页面，通知将再次出现。每次刷新该产品页面时，它都会出现。这是因为 `product.isInCart` 在页面加载时已经是 `true` 了，所以上面的 Effect 每次都会调用 `showNotification()`。
+
+当你不确定某些代码应该放在 Effect 中还是事件处理函数中时，先自问 为什么 要执行这些代码。Effect 只用来执行那些显示给用户时组件 需要执行 的代码。在这个例子中，通知应该在用户 按下按钮 后出现，而不是因为页面显示出来时！删除 Effect 并将共享的逻辑放入一个被两个事件处理程序调用的函数中：
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // ✅ 非常好：事件特定的逻辑在事件处理函数中处理
+  function buyProduct() {
+    addToCart(product);
+    showNotification(`已添加 ${product.name} 进购物车！`);
+  }
+
+  function handleBuyClick() {
+    buyProduct();
+  }
+
+  function handleCheckoutClick() {
+    buyProduct();
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+这既移除了不必要的 Effect，又修复了问题。
