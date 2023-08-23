@@ -285,3 +285,60 @@ function ProductPage({ product, addToCart }) {
 ```
 
 这既移除了不必要的 Effect，又修复了问题。
+
+### 发送 POST 请求 
+这个 `Form` 组件会发送两种 POST 请求。它在页面加载之际会发送一个分析请求。当你填写表格并点击提交按钮时，它会向 `/api/register` 接口发送一个 `POST` 请求：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ 非常好：这个逻辑应该在组件显示时执行
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  // 🔴 避免：在 Effect 中处理属于事件特定的逻辑
+  const [jsonToSubmit, setJsonToSubmit] = useState(null);
+  useEffect(() => {
+    if (jsonToSubmit !== null) {
+      post('/api/register', jsonToSubmit);
+    }
+  }, [jsonToSubmit]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setJsonToSubmit({ firstName, lastName });
+  }
+  // ...
+}
+```
+
+让我们应用与之前示例相同的准则。
+
+分析请求应该保留在 Effect 中。这是 因为 发送分析请求是表单显示时就需要执行的（在开发环境中它会发送两次，请 参考这里 了解如何处理）。
+
+然而，发送到 `/api/register` 的 POST 请求并不是由表单 显示 时引起的。你只想在一个特定的时间点发送请求：当用户按下按钮时。它应该只在这个 特定的交互 中发生。删除第二个 Effect，将该 POST 请求移入事件处理函数中：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ 非常好：这个逻辑应该在组件显示时执行
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    // ✅ 非常好：事件特定的逻辑在事件处理函数中处理
+    post('/api/register', { firstName, lastName });
+  }
+  // ...
+}
+```
+
+当你决定将某些逻辑放入事件处理函数还是 Effect 中时，你需要回答的主要问题是：从用户的角度来看它是 怎样的逻辑。如果这个逻辑是由某个特定的交互引起的，请将它保留在相应的事件处理函数中。如果是由用户在屏幕上 看到 组件时引起的，请将它保留在 Effect 中。
+
