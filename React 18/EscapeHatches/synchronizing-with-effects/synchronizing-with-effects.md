@@ -826,3 +826,68 @@ React 将第三次渲染时的 `['travel']` 与第二次渲染时的 `['general'
 + 仅在严格模式下的开发环境中，React 会挂载两次组件，以对 Effect 进行压力测试。
 + 如果 Effect 因为重新挂载而中断，那么需要实现一个清理函数。
 + React 将在下次 Effect 运行之前以及卸载期间这两个时候调用清理函数。
+
+## 尝试一些挑战
+不用 Effect 重置 `state`
+
+`EditContact` 组件的 `prop` `savedContact` 接收一个类似于 `{ id, name, email }` 这样的联系人对象。尝试编辑名称和邮箱输入框。当你点击保存按钮时，表单上方的联系人按钮会更新为编辑后的名称。当你点击重置按钮时，表单中的任何改动都会被丢弃。试着玩一玩儿这个用户界面感受一下。
+
+当你用顶部按钮选择一个联系人时，该表单会重置并展示该联系人的详细信息。这是在 `EditContact.js` 内部使用 Effect 实现的。移除该 Effect，找到另一种方式在 `savedContact.id` 变化时重置表单。
+
+将 `EditContact` 组件拆分为两个组件。将所有表单 `state` 移动到内部的 `EditForm` 组件中。导出外部的 `EditContact` 组件，并将 `savedContact.id` 作为 `key` 传入内部的 `EditForm` 组件。结果是，每当你选择不同的联系人时，内部的 `EditForm` 组件会重置所有表单状态并重新创建 DOM。
+
+```jsx
+import { useState } from 'react';
+
+export default function EditContact(props) {
+  return (
+    <EditForm
+      {...props}
+      key={props.savedContact.id}
+    />
+  );
+}
+
+function EditForm({ savedContact, onSave }) {
+  const [name, setName] = useState(savedContact.name);
+  const [email, setEmail] = useState(savedContact.email);
+
+  return (
+    <section>
+      <label>
+        姓名：{' '}
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        邮箱：{' '}
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
+      </label>
+      <button onClick={() => {
+        const updatedData = {
+          id: savedContact.id,
+          name: name,
+          email: email
+        };
+        onSave(updatedData);
+      }}>
+        保存
+      </button>
+      <button onClick={() => {
+        setName(savedContact.name);
+        setEmail(savedContact.email);
+      }}>
+        重置
+      </button>
+    </section>
+  );
+}
+```
+
