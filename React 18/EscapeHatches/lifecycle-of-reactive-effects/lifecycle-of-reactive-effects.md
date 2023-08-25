@@ -67,3 +67,40 @@ Effect 返回的清理函数指定了如何 *停止同步*：
 
 ### 注意
 有些 Effect 根本不返回清理函数。在大多数情况下，可能希望返回一个清理函数，但如果没有返回，React 将表现得好像返回了一个空的清理函数。
+
+### 为什么同步可能需要多次进行 
+想象一下，这个 `ChatRoom` 组件接收 `roomId` 属性，用户可以在下拉菜单中选择。假设初始时，用户选择了 `"general"` 作为 `roomId`。应用程序会显示 `"general"` 聊天室：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId /* "general" */ }) {
+  // ...
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+```
+
+在 UI 显示之后，React 将运行 Effect 来 开始同步。它连接到 `"general"` 聊天室：
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+    useEffect(() => {
+        const connection = createConnection(serverUrl, roomId); // 连接到 "general" 聊天室
+        connection.connect();
+        return () => {
+            connection.disconnect(); // 断开与 "general" 聊天室的连接
+        };
+    }, [roomId]);
+    // ...
+}
+```
+
+到目前为止，一切都很顺利。
+
+之后，用户在下拉菜单中选择了不同的房间（例如 `"travel"` ）。首先，React 会更新 UI：
+
+思考接下来应该发生什么。用户在界面中看到 `"travel"` 是当前选定的聊天室。然而，上次运行的 Effect 仍然连接到 `"general"` 聊天室。*`roomId` 属性已经发生了变化，所以之前 Effect 所做的事情（连接到 `"general"` 聊天室）不再与 UI 匹配。*
+
+此时，你希望 React 执行两个操作：
+1. 停止与旧的 roomId 同步（断开与 `"general"` 聊天室的连接）
+2. 开始与新的 roomId 同步（连接到 `"travel"` 聊天室）
