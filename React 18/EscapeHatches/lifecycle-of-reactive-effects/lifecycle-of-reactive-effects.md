@@ -183,3 +183,76 @@ function ChatRoom({ roomId /* "travel" */ }) {
 
 这可能会让你想起当编写创建 JSX 的渲染逻辑时，并不考虑组件是挂载还是更新。描述的是应该显示在屏幕上的内容，而 React 会 解决其余的问题。
 
+### React 如何验证 Effect 可以重新进行同步 
+这里有一个可以互动的实时示例。点击“打开聊天”来挂载 `ChatRoom` 组件：
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        选择聊天室：{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">所有</option>
+          <option value="travel">旅游</option>
+          <option value="music">音乐</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? '关闭聊天' : '打开聊天'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId} />}
+    </>
+  );
+}
+```
+
+#### Chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 实际的实现将会连接到服务器
+  return {
+    connect() {
+      console.log('✅ 连接到 "' + roomId + '" 房间，位于' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ 断开 "' + roomId + '" 房间，位于' + serverUrl);
+    }
+  };
+}
+```
+
+请注意，当组件首次挂载时，会看到三个日志：
+
+1. `✅ 连接到 "general" 聊天室，位于 https://localhost:1234...` (仅限开发环境)
+2. `❌ 从 "general" 聊天室断开连接，位于 https://localhost:1234.` (仅限开发环境)
+3. `✅ 连接到 "general" 聊天室，位于 https://localhost:1234...`
+
+前两个日志仅适用于开发环境。在开发环境中，React 总是会重新挂载每个组件一次。
+
+*React 通过在开发环境中立即强制 Effect 重新进行同步来验证其是否能够重新同步。* 这可能让你想起打开门并额外关闭它以检查门锁是否有效的情景。React 在开发环境中额外启动和停止 Effect 一次，以检查 是否正确实现了它的清理功能。
+
+实际上，Effect 重新进行同步的主要原因是它所使用的某些数据发生了变化。在上面的示例中，更改所选的聊天室。注意当 `roomId` 发生变化时，Effect 会重新进行同步。
+
+然而，还存在其他一些不寻常的情况需要重新进行同步。例如，在上面的示例中，尝试在聊天打开时编辑 `serverUrl`。注意当修改代码时，Effect 会重新进行同步。将来，React 可能会添加更多依赖于重新同步的功能。
