@@ -142,3 +142,4 @@ function ChatRoom({ roomId /* "travel" */ }) {
 
 每当组件使用不同的 `roomId` 重新渲染后，Effect 将重新进行同步。例如，假设用户将 `roomId` 从 `"travel"` 更改为 `"music"`。React 将再次通过调用清理函数 停止同步 Effect（断开与 `"travel"` 聊天室的连接）。然后，它将通过使用新的 `roomId` 属性再次运行 Effect 的主体部分 开始同步（连接到 `"music"` 聊天室）。
 
+### 从 Effect 的角度思考 
