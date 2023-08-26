@@ -282,3 +282,40 @@ function ChatRoom({ roomId }) { // roomId 属性可能会随时间变化。
 每次在组件重新渲染后，React 都会查看传递的依赖项数组。如果数组中的任何值与上一次渲染时在相同位置传递的值不同，React 将重新同步 Effect。
 
 例如，如果在初始渲染时传递了 `["general"]`，然后在下一次渲染时传递了 `["travel"]`，React 将比较 `"general"` 和 `"travel"`。这些是不同的值（使用 `Object.is` 进行比较），因此 React 将重新同步 Effect。另一方面，如果组件重新渲染但 `roomId` 没有发生变化，Effect 将继续连接到相同的房间。
+
+### 每个 Effect 表示一个独立的同步过程。 
+抵制将与 Effect 无关的逻辑添加到已经编写的 Effect 中，仅仅因为这些逻辑需要与 Effect 同时运行。例如，假设你想在用户访问房间时发送一个分析事件。你已经有一个依赖于 `roomId` 的 Effect，所以你可能会想要将分析调用添加到那里：
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+但是想象一下，如果以后给这个 Effect 添加了另一个需要重新建立连接的依赖项。如果这个 Effect 重新进行同步，它将为相同的房间调用 `logVisit(roomId)`，而这不是你的意图。记录访问行为是 *一个独立的过程*，与连接不同。将它们作为两个单独的 Effect 编写：
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+  }, [roomId]);
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    // ...
+  }, [roomId]);
+  // ...
+}
+```
+
+* 代码中的每个 Effect 应该代表一个独立的同步过程。* 
+
+在上面的示例中，删除一个 Effect 不会影响另一个 Effect 的逻辑。这表明它们同步不同的内容，因此将它们拆分开是有意义的。另一方面，如果将一个内聚的逻辑拆分成多个独立的 Effects，代码可能会看起来更加“清晰”，但 维护起来会更加困难。这就是为什么你应该考虑这些过程是相同还是独立的，而不是只考虑代码是否看起来更整洁。
