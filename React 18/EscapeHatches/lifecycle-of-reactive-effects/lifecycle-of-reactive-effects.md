@@ -256,3 +256,29 @@ export function createConnection(serverUrl, roomId) {
 实际上，Effect 重新进行同步的主要原因是它所使用的某些数据发生了变化。在上面的示例中，更改所选的聊天室。注意当 `roomId` 发生变化时，Effect 会重新进行同步。
 
 然而，还存在其他一些不寻常的情况需要重新进行同步。例如，在上面的示例中，尝试在聊天打开时编辑 `serverUrl`。注意当修改代码时，Effect 会重新进行同步。将来，React 可能会添加更多依赖于重新同步的功能。
+
+### React 如何知道需要重新进行 Effect 的同步 
+你可能想知道 React 是如何知道在 `roomId` 更改后需要重新同步 Effect。这是因为 你告诉了 React 它的代码依赖于 `roomId`，通过将其包含在 *依赖列表* 中。
+
+```jsx
+function ChatRoom({ roomId }) { // roomId 属性可能会随时间变化。
+    useEffect(() => {
+        const connection = createConnection(serverUrl, roomId); // 这个 Effect 读取了 roomId
+        connection.connect();
+        return () => {
+            connection.disconnect();
+        };
+    }, [roomId]); // 因此，你告诉 React 这个 Effect "依赖于" roomId
+    // ...
+}
+```
+
+下面是它的工作原理：
+
+1. 你知道 `roomId` 是 `prop`，这意味着它可能会随着时间的推移发生变化。
+2. 你知道 Effect 读取了 `roomId`（因此其逻辑依赖于可能会在之后发生变化的值）。
+3. 这就是为什么你将其指定为 Effect 的依赖项（以便在 `roomId` 发生变化时重新进行同步）。
+
+每次在组件重新渲染后，React 都会查看传递的依赖项数组。如果数组中的任何值与上一次渲染时在相同位置传递的值不同，React 将重新同步 Effect。
+
+例如，如果在初始渲染时传递了 `["general"]`，然后在下一次渲染时传递了 `["travel"]`，React 将比较 `"general"` 和 `"travel"`。这些是不同的值（使用 `Object.is` 进行比较），因此 React 将重新同步 Effect。另一方面，如果组件重新渲染但 `roomId` 没有发生变化，Effect 将继续连接到相同的房间。
