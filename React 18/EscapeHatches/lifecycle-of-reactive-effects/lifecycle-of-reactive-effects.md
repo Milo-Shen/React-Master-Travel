@@ -319,3 +319,115 @@ function ChatRoom({ roomId }) {
 * 代码中的每个 Effect 应该代表一个独立的同步过程。* 
 
 在上面的示例中，删除一个 Effect 不会影响另一个 Effect 的逻辑。这表明它们同步不同的内容，因此将它们拆分开是有意义的。另一方面，如果将一个内聚的逻辑拆分成多个独立的 Effects，代码可能会看起来更加“清晰”，但 维护起来会更加困难。这就是为什么你应该考虑这些过程是相同还是独立的，而不是只考虑代码是否看起来更整洁。
+
+### Effect 会“响应”于响应式值 
+Effect 读取了两个变量（`serverUrl` 和 `roomId`），但是只将 `roomId` 指定为依赖项：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+为什么 `serverUrl` 不需要作为依赖项呢？
+
+这是因为 `serverUrl` 永远不会因为重新渲染而发生变化。无论组件重新渲染多少次以及原因是什么，`serverUrl` 都保持不变。既然 `serverUrl` 从不变化，将其指定为依赖项就没有意义。毕竟，依赖项只有在随时间变化时才会起作用！
+
+另一方面，`roomId` 在重新渲染时可能会不同。*在组件内部声明的 `props`、`state` 和其他值都是 响应式 的，因为它们是在渲染过程中计算的，并参与了 React 的数据流。*
+
+如果 `serverUrl` 是状态变量，那么它就是响应式的。响应式值必须包含在依赖项中：
+
+```jsx
+function ChatRoom({ roomId }) { // Props 随时间变化
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // State 可能随时间变化
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Effect 读取 props 和 state
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, serverUrl]); // 因此，你告诉 React 这个 Effect "依赖于" props 和 state
+  // ...
+}
+```
+
+通过将 `serverUrl` 包含在依赖项中，确保 Effect 在其发生变化后重新同步。
+
+尝试在此沙盒中更改所选的聊天室或编辑服务器 URL：
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return (
+    <>
+      <label>
+        服务器 URL：{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>欢迎来到 {roomId} 房间！</h1>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        选择聊天室：{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">所有</option>
+          <option value="travel">旅游</option>
+          <option value="music">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 实际的实现将会连接到服务器
+  return {
+    connect() {
+      console.log('✅ 连接到 "' + roomId + '" 房间，位于' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ 断开 "' + roomId + '" 房间，位于' + serverUrl);
+    }
+  };
+}
+```
+
+无论何时更改一个类似 `roomId` 或 `serverUrl` 的响应式值，该 Effect 都会重新连接到聊天服务器。
