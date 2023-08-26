@@ -104,3 +104,5 @@ function ChatRoom({ roomId /* "general" */ }) {
 此时，你希望 React 执行两个操作：
 1. 停止与旧的 roomId 同步（断开与 `"general"` 聊天室的连接）
 2. 开始与新的 roomId 同步（连接到 `"travel"` 聊天室）
+
+幸运的是，你已经教会了 React 如何执行这两个操作！Effect 的主体部分指定了如何开始同步，而清理函数指定了如何停止同步。现在，React 只需要按照正确的顺序和正确的 `props` 和 `state` 来调用它们。让我们看看具体是如何实现的。
