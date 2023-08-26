@@ -106,3 +106,39 @@ function ChatRoom({ roomId /* "general" */ }) {
 2. 开始与新的 roomId 同步（连接到 `"travel"` 聊天室）
 
 幸运的是，你已经教会了 React 如何执行这两个操作！Effect 的主体部分指定了如何开始同步，而清理函数指定了如何停止同步。现在，React 只需要按照正确的顺序和正确的 `props` 和 `state` 来调用它们。让我们看看具体是如何实现的。
+
+### React 如何重新同步 Effect 
+回想一下，`ChatRoom` 组件已经接收到了 `roomId` 属性的新值。之前它是 `"general"`，现在变成了 `"travel"`。React 需要重新同步 Effect，以重新连接到不同的聊天室。
+
+为了 *停止同步*，React 将调用 Effect 返回的清理函数，该函数在连接到 `"general"` 聊天室后返回。由于 `roomId` 为 `"general"`，清理函数将断开与 `"general"` 聊天室的连接：
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+  useEffect(() => {
+      const connection = createConnection(serverUrl, roomId); // 连接到 "general" 聊天室
+      connection.connect();
+      return () => {
+          connection.disconnect(); // 断开与 "general" 聊天室的连接
+      };
+      // ...
+  })
+}
+```
+
+然后，React 将运行在此渲染期间提供的 Effect。这次，`roomId` 为 `"travel"`，因此它将 开始同步 到 `"travel"` 聊天室（直到最终也调用了清理函数）：
+
+```jsx
+function ChatRoom({ roomId /* "travel" */ }) {
+    useEffect(() => {
+        const connection = createConnection(serverUrl, roomId); // 连接到 "travel" 聊天室
+        connection.connect();
+        // ...
+
+    })
+}
+```
+
+多亏了这一点，现在已经连接到了用户在 UI 中选择的同一个聊天室。避免了灾难！
+
+每当组件使用不同的 `roomId` 重新渲染后，Effect 将重新进行同步。例如，假设用户将 `roomId` 从 `"travel"` 更改为 `"music"`。React 将再次通过调用清理函数 停止同步 Effect（断开与 `"travel"` 聊天室的连接）。然后，它将通过使用新的 `roomId` 属性再次运行 Effect 的主体部分 开始同步（连接到 `"music"` 聊天室）。
+
