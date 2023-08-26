@@ -143,3 +143,43 @@ function ChatRoom({ roomId /* "travel" */ }) {
 每当组件使用不同的 `roomId` 重新渲染后，Effect 将重新进行同步。例如，假设用户将 `roomId` 从 `"travel"` 更改为 `"music"`。React 将再次通过调用清理函数 停止同步 Effect（断开与 `"travel"` 聊天室的连接）。然后，它将通过使用新的 `roomId` 属性再次运行 Effect 的主体部分 开始同步（连接到 `"music"` 聊天室）。
 
 ### 从 Effect 的角度思考 
+让我们总结一下从 `ChatRoom` 组件的角度所发生的一切：
+
+1. `ChatRoom` 组件挂载，`roomId` 设置为 `"general"`
+2. `ChatRoom` 组件更新，`roomId` 设置为 `"travel"`
+3. `ChatRoom` 组件更新，`roomId` 设置为 `"music"`
+4. `ChatRoom` 组件卸载
+
+在组件生命周期的每个阶段，Effect 执行了不同的操作：
+
+1. Effect 连接到了 `"general"` 聊天室
+2. Effect 断开了与 `"general"` 聊天室的连接，并连接到了 `"travel"` 聊天室
+3. Effect 断开了与 `"travel"` 聊天室的连接，并连接到了 `"music"` 聊天室
+4. Effect 断开了与 `"music"` 聊天室的连接
+
+现在让我们从 Effect 本身的角度来思考所发生的事情：
+
+```jsx
+  useEffect(() => {
+    // Effect 连接到了通过 roomId 指定的聊天室...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      // ...直到它断开连接
+      connection.disconnect();
+    };
+  }, [roomId]);
+```
+
+这段代码的结构可能会将所发生的事情看作是一系列不重叠的时间段：
+
+1. Effect 连接到了 `"general"` 聊天室（直到断开连接）
+2. Effect 连接到了 `"travel"` 聊天室（直到断开连接）
+3. Effect 连接到了 `"music"` 聊天室（直到断开连接）
+
+之前，你是从组件的角度思考的。当你从组件的角度思考时，很容易将 Effect 视为在特定时间点触发的“回调函数”或“生命周期事件”，例如“渲染后”或“卸载前”。这种思维方式很快变得复杂，所以最好避免使用。
+
+*相反，始终专注于单个启动/停止周期。无论组件是挂载、更新还是卸载，都不应该有影响。只需要描述如何开始同步和如何停止。如果做得好，Effect 将能够在需要时始终具备启动和停止的弹性。*
+
+这可能会让你想起当编写创建 JSX 的渲染逻辑时，并不考虑组件是挂载还是更新。描述的是应该显示在屏幕上的内容，而 React 会 解决其余的问题。
+
