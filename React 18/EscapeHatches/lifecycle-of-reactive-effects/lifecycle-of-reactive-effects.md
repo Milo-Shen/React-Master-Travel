@@ -431,3 +431,74 @@ export function createConnection(serverUrl, roomId) {
 ```
 
 无论何时更改一个类似 `roomId` 或 `serverUrl` 的响应式值，该 Effect 都会重新连接到聊天服务器。
+
+### 没有依赖项的 Effect 的含义 
+如果将 `serverUrl` 和 `roomId` 都移出组件会发生什么？
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+const roomId = 'general';
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, []); // ✅ 声明的所有依赖
+  // ...
+}
+```
+
+现在 Effect 的代码不使用任何响应式值，因此它的依赖可以是空的 (`[]`)。
+
+从组件的角度来看，空的 `[]` 依赖数组意味着这个 Effect 仅在组件挂载时连接到聊天室，并在组件卸载时断开连接。（请记住，在开发环境中，React 仍会 额外执行一次 来对逻辑进行压力测试。）
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+const roomId = 'general';
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? '关闭聊天' : '打开聊天'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom />}
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 实际的实现将会连接到服务器
+  return {
+    connect() {
+      console.log('✅ 连接到 "' + roomId + '" 房间，位于' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ 断开 "' + roomId + '" 房间，位于' + serverUrl);
+    }
+  };
+}
+```
+
+然而，如果你 从 Effect 的角度思考，根本不需要考虑挂载和卸载。重要的是，你已经指定了 Effect 如何开始和停止同步。目前，它没有任何响应式依赖。但是，如果希望用户随时间改变 `roomId` 或 `serverUrl`（它们将变为响应式），Effect 的代码不需要改变。只需要将它们添加到依赖项中即可。
