@@ -795,3 +795,12 @@ function useTimer(callback, delay) {
 ```
 
 Effect Event 是 Effect 代码的非响应式“片段”。他们应该在使用他们的 Effect 的旁边。
+
+### 摘要
++ 事件处理函数在响应特定交互时运行。
++ Effect 在需要同步的时候运行。
++ 事件处理函数内部的逻辑是非响应式的。
++ Effect 内部的逻辑是响应式的。
++ 你可以将非响应式逻辑从 Effect 移到 Effect Event 中。
++ 只在 Effect 内部调用 Effect Event。
++ 不要将 Effect Event 传给其他组件或者 Hook。
