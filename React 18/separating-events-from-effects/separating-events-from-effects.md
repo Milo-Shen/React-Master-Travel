@@ -134,3 +134,27 @@ export function createConnection(serverUrl, roomId) {
   };
 }
 ```
+
+### 响应式值和响应式逻辑 
+直观上，你可以说事件处理函数总是“手动”触发的，例如点击按钮。另一方面， Effect 是自动触发：每当需要保持同步的时候他们就会开始运行和重新运行。
+
+有一个更精确的方式来考虑这个问题。
+
+组件内部声明的 `state` 和 `props` 变量被称为  响应式值。本示例中的 `serverUrl` 不是响应式值，但 `roomId` 和 `message` 是。他们参与组件的渲染数据流：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  // ...
+}
+```
+
+像这样的响应式值可以因为重新渲染而变化。例如用户可能会编辑 message 或者在下拉菜单中选中不同的 roomId。事件处理函数和 Effect 对于变化的响应是不一样的：
+
+*事件处理函数内部的逻辑是非响应式的。* 除非用户又执行了同样的操作（例如点击），否则这段逻辑不会再运行。事件处理函数可以在“不响应”他们变化的情况下读取响应式值。
+*Effect 内部的逻辑是响应式的。* 如果 Effect 要读取响应式值，你必须将它指定为依赖项。如果接下来的重新渲染引起那个值变化，React 就会使用新值重新运行 Effect 内的逻辑。
+
+让我们重新看看前面的示例来说明差异。
