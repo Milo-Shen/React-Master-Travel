@@ -607,3 +607,132 @@ function Page({ url }) {
 ```
 
 在这里，`onVisit` 内的 `url` 对应 *最新的* `url`（可能已经变化了），但是 `visitedUrl` 对应的是最开始引起这个 Effect（并且是本次 `onVisit` 调用）运行的 `url` 。
+
+### 抑制依赖项检查是可行的吗？ 
+在已经存在的代码库中，你可能有时会看见像这样的检查规则抑制：
+
+```jsx
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  useEffect(() => {
+    logVisit(url, numberOfItems);
+    // 🔴 避免像这样抑制代码检查:
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+  // ...
+}
+```
+
+等 `useEffectEvent` 成为 React 稳定部分后，我们会推荐 永远不要抑制代码检查工具。
+
+抑制规则的第一个缺点是当 Effect 需要对一个已经在代码中出现过的新响应式依赖项做出“响应”时，React 不会再发出警告。在稍早之前的示例中，你将 `url` 添加为依赖项，*是因为* React 提醒你去做这件事。如果禁用代码检查，你未来将不会再收到任何关于 Effect 修改的提醒。这引起了 bug。
+
+这个示例展示了一个由抑制代码检查引起的奇怪 bug。在这个示例中，`handleMove` 应该读取当前的 `state` 变量 `canMove` 的值来决定这个点是否应该跟随光标。但是 `handleMove` 中的 `canMove` 一直是 `true`。
+
+你能看出是为什么吗？
+
+```jsx
+import { useState, useEffect } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  function handleMove(e) {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener('pointermove', handleMove);
+    return () => window.removeEventListener('pointermove', handleMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input type="checkbox"
+          checked={canMove}
+          onChange={e => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div style={{
+        position: 'absolute',
+        backgroundColor: 'pink',
+        borderRadius: '50%',
+        opacity: 0.6,
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        pointerEvents: 'none',
+        left: -20,
+        top: -20,
+        width: 40,
+        height: 40,
+      }} />
+    </>
+  );
+}
+```
+
+这段代码的问题在于抑制依赖项检查。如果移除，你可以看到 Effect 应该依赖于 `handleMove` 函数。这非常有意义：`handleMove` 是在组件内声明的，是响应式值。而每个响应式值都必须被指定为依赖项，否则它可能会随着时间而过时！
+
+原代码的作者对 React “撒谎”说 Effect 不依赖于任何响应式值（`[]`）。这就是为什么 `canMove`（以及 `handleMove`）变化后 React 没有重新同步。因为 React 没有重新同步 Effect，所以作为监听器附加的 `handleMove` 还是初次渲染期间创建的 `handleMove` 函数。初次渲染期间，`canMove` 的值是 `true`，这就是为什么来自初次渲染的 `handleMove` 永远只能看到这个值。
+
+*如果你从来没有抑制代码检查，就永远不会遇见过期值的问题。*
+
+有了 `useEffectEvent`，就不需要对代码检查工具“说谎”，并且代码也能和你预期的一样工作：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  const onMove = useEffectEvent(e => {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  });
+
+  useEffect(() => {
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input type="checkbox"
+          checked={canMove}
+          onChange={e => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div style={{
+        position: 'absolute',
+        backgroundColor: 'pink',
+        borderRadius: '50%',
+        opacity: 0.6,
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        pointerEvents: 'none',
+        left: -20,
+        top: -20,
+        width: 40,
+        height: 40,
+      }} />
+    </>
+  );
+}
+```
+
+这不意味着 `useEffectEvent` 总是 正确的解决方案。你只能把它用在你不需要变成响应式的代码上。上面的 sandbox 中，你不需要 Effect 的代码响应 `canMove`。这就是提取 Effect Event 很有意义的原因。
+阅读 移除 Effect 依赖项 寻找抑制代码检查的其他正确的替代方式。
+
