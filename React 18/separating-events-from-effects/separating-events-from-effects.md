@@ -977,3 +977,209 @@ export default function Timer() {
 ```
 
 总的来说，你应该对像 `onMount` 这样主要关注 执行时机 而非 目的 的函数持有怀疑态度。开始可能会感觉“更具描述性”，但是可能会模糊你的意图。根据经验来说，Effect Event 应该对应从“用户的”角度发生的事情。例如，`onMessage`，`onTick`，`onVisit` 或者 `onConnected` 是优秀的 Effect Event 名称。它们内部的代码可能不需要是响应式的。另一方面，`onMount`，`onUpdate`，`onUnmount` 或者 `onAfterRender` 太通用了，以至于很容易不小心就把一些”应该”是响应式的代码放入其中。这就是为什么你应该用 用户想要什么发生 来给你的 Effect Event 命名，而不是用某些代码正好运行的时机命名。
+
+### 修复延迟通知 
+当你加入一个聊天室时，这个组件展示一个通知。但是它不会立刻展示通知。相反，把通知人工延迟 2 秒钟，以便用户有机会查看 UI。
+
+这几乎生效了，但还是有一个 bug。尝试将下拉菜单从“general”变成“travel”并且接下来非常快速的变成“music”。如果你动作足够快，你会看到两个通知（和预期一样！），但是他们 都是 展示 “Welcome to music”。
+
+修复它，让它能在你快速从“general”切换到“travel”再到“music”的时候看见两个通知，第一个是“Welcome to travel” ，第二个是“Welcome to music”（有一个额外的挑战，假设你 已经 让通知显示了正确的房间，请修改代码只展示后面的通知）。
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Welcome to ' + roomId, theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      setTimeout(() => {
+         showNotification('Welcome to ' + roomId, theme);
+      }, 2000);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId,theme]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+在 Effect Event 内部，`roomId` 是 Effect Event 被调用时刻 的值。
+
+Effect Event 伴随着两秒的延迟被调用。如果你快速地从 travel 切换到 music 聊天室，直到 travel 聊天室的通知显示出来，roomId 已经是 “music” 了。这就是为什么两个通知都是 “Welcome to music”。
+
+为了修复这个问题，不要在 Effect Event 里面读取 最新的 `roomId`，而是如同下面的 `connectedRoomId` 一样让它成为 Effect Event 的参数。然后通过调用 `onConnected(roomId)` 将 `roomId` 从 Effect 中传入：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(connectedRoomId => {
+    showNotification('Welcome to ' + connectedRoomId, theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      setTimeout(() => {
+        onConnected(roomId);
+      }, 2000);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+将 `roomId` 设置为 “travel”（所以它连接到了 “travel” 聊天室）的 Effect 将会展示 “travel” 的通知。将 `roomId` 设置为 “music”（所以它连接到了 “music” 聊天室）的 Effect 将会展示 "music" 的通知。换言之，`connectedRoomId` 来自 Effect（是响应式的），而 `theme` 总是使用最新值。
+
+为了解决额外的挑战，保存通知的 `timeout` ID，并在 Effect 的清理函数中进行清理：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(connectedRoomId => {
+    showNotification('Welcome to ' + connectedRoomId, theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    let notificationTimeoutId;
+    connection.on('connected', () => {
+      notificationTimeoutId = setTimeout(() => {
+        onConnected(roomId);
+      }, 2000);
+    });
+    connection.connect();
+    return () => {
+      connection.disconnect();
+      if (notificationTimeoutId !== undefined) {
+        clearTimeout(notificationTimeoutId);
+      }
+    };
+  }, [roomId]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
