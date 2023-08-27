@@ -736,3 +736,62 @@ export default function App() {
 这不意味着 `useEffectEvent` 总是 正确的解决方案。你只能把它用在你不需要变成响应式的代码上。上面的 sandbox 中，你不需要 Effect 的代码响应 `canMove`。这就是提取 Effect Event 很有意义的原因。
 阅读 移除 Effect 依赖项 寻找抑制代码检查的其他正确的替代方式。
 
+### Effect Event 的局限性 
++ 只在 Effect 内部调用他们。
++ 永远不要把他们传给其他的组件或者 Hook。
+
+例如不要像这样声明和传递 Effect Event：
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+
+  const onTick = useEffectEvent(() => {
+    setCount(count + 1);
+  });
+
+  useTimer(onTick, 1000); // 🔴 Avoid: 传递 Effect Event
+
+  return <h1>{count}</h1>
+}
+
+function useTimer(callback, delay) {
+  useEffect(() => {
+    const id = setInterval(() => {
+      callback();
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay, callback]); // 需要在依赖项中指定“callback”
+}
+```
+
+取而代之的是，永远直接在使用他们的 Effect 旁边声明 Effect Event：
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+  useTimer(() => {
+    setCount(count + 1);
+  }, 1000);
+  return <h1>{count}</h1>
+}
+
+function useTimer(callback, delay) {
+  const onTick = useEffectEvent(() => {
+    callback();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      onTick(); // ✅ Good: 只在 Effect 内部局部调用
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay]); // 不需要指定 “onTick” (Effect Event) 作为依赖项
+}
+```
+
+Effect Event 是 Effect 代码的非响应式“片段”。他们应该在使用他们的 Effect 的旁边。
