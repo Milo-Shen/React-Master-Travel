@@ -136,3 +136,74 @@ export function createConnection(serverUrl, roomId) {
   };
 }
 ```
+
+### 当要移除一个依赖时，请证明它不是一个依赖 
+注意，你不能“选择” Effect 的依赖。每个被 Effect 所使用的响应式值，*必须* 在依赖中声明。依赖是由 Effect 的代码决定的：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) { // 这是一个响应式值
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Effect 在这里读取响应式值
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 所以你必须在依赖中声明 Effect 使用的响应式值
+  // ...
+}
+```
+
+响应式值 包括 `props` 以及所有你直接在组件中声明的变量和函数。由于 `roomId` 是响应式值，你不能把它从依赖中移除。linter 不允许这样做：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // 🔴 React Hook useEffect 缺失依赖: 'roomId'
+  // ...
+}
+```
+
+linter 是对的！ 由于 `roomId` 可能会随时间变化，这会在代码中引入错误。
+
+*移除一个依赖，你需要向 linter 证明其不需要这个依赖。* 例如，你可以将 `roomId` 移出组件，以证明它不是响应的，也不会在重新渲染时改变：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+const roomId = '音乐'; // 不再是响应式值
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ 所有依赖已声明
+  // ...
+}
+```
+
+现在 `roomId` 不是响应式值（并且不能在重新渲染时改变），那它不就不是依赖：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+const roomId = '音乐';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+```
+
+这就是为什么你现在可以指定 空（`[]`）依赖。Effect *真的不* 依赖任何响应式值了，也 *真的不* 需要在组件的 props 或 state 改变时重新运行。
+
