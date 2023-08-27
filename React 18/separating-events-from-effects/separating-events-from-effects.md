@@ -201,3 +201,158 @@ function ChatRoom({ roomId }) {
 ```
 
 Effect 是响应式的，所以 `createConnection(serverUrl, roomId)` 和 `connection.connect()` 会因为 `roomId` 每个不同的值而运行。Effect 让聊天室连接和当前选中的房间保持了同步。
+
+### 从 Effect 中提取非响应式逻辑
+当你想混合使用响应式逻辑和非响应式逻辑时，事情变得更加棘手。
+
+例如，假设你想在用户连接到聊天室时展示一个通知。并且通过从 props 中读取当前 theme（dark 或者 light）来展示对应颜色的通知：
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+      const connection = createConnection(serverUrl, roomId);
+      connection.on('connected', () => {
+          showNotification('Connected!', theme);
+      });
+      connection.connect();
+      // ...
+  });
+}
+```
+
+但是 `theme` 是一个响应式值（它会由于重新渲染而变化），并且 Effect 读取的每一个响应式值都必须在其依赖项中声明。现在你必须把 `theme` 作为 Effect 的依赖项之一：
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+    useEffect(() => {
+        const connection = createConnection(serverUrl, roomId);
+        connection.on('connected', () => {
+            showNotification('Connected!', theme);
+        });
+        connection.connect();
+        return () => {
+            connection.disconnect()
+        };
+    }, [roomId, theme]); // ✅ 声明所有依赖项
+    // ...
+}
+```
+
+用这个例子试一下，看你能否看出这个用户体验问题：
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, theme]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 真正的实现实际上会连接到服务器
+  let connectedCallback;
+  let timeout;
+  return {
+    connect() {
+      timeout = setTimeout(() => {
+        if (connectedCallback) {
+          connectedCallback();
+        }
+      }, 100);
+    },
+    on(event, callback) {
+      if (connectedCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'connected') {
+        throw Error('Only "connected" event is supported.');
+      }
+      connectedCallback = callback;
+    },
+    disconnect() {
+      clearTimeout(timeout);
+    }
+  };
+}
+```
+
+#### notification.js
+```jsx
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme) {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+当 `roomId` 变化时，聊天会和预期一样重新连接。但是由于 `theme` 也是一个依赖项，所以每次你在 dark 和 light 主题间切换时，聊天 也会 重连。这不是很好！
+
+换言之，即使它在 Effect 内部（这是响应式的），你也不想让这行代码变成响应式：
+
+```jsx
+  // ...
+  showNotification('Connected!', theme);
+  // ...
+```
+
+你需要一个将这个非响应式逻辑和周围响应式 Effect 隔离开来的方法。
+
