@@ -502,3 +502,40 @@ export function createConnection(serverUrl, roomId) {
 ```
 
 然而，如果你 从 Effect 的角度思考，根本不需要考虑挂载和卸载。重要的是，你已经指定了 Effect 如何开始和停止同步。目前，它没有任何响应式依赖。但是，如果希望用户随时间改变 `roomId` 或 `serverUrl`（它们将变为响应式），Effect 的代码不需要改变。只需要将它们添加到依赖项中即可。
+
+### 在组件主体中声明的所有变量都是响应式的
+`Props` 和 `state` 并不是唯一的响应式值。从它们计算出的值也是响应式的。如果 `props` 或 `state` 发生变化，组件将重新渲染，从中计算出的值也会随之改变。这就是为什么 Effect 使用的组件主体中的所有变量都应该在依赖列表中。
+
+假设用户可以在下拉菜单中选择聊天服务器，但他们还可以在设置中配置默认服务器。假设你已经将设置状态放入了 上下文，因此从该上下文中读取 `settings`。现在，可以根据 `props` 中选择的服务器和默认服务器来计算 `serverUrl`：
+
+```jsx
+function ChatRoom({ roomId, selectedServerUrl }) { // roomId 是响应式的
+  const settings = useContext(SettingsContext); // settings 是响应式的
+  const serverUrl = selectedServerUrl ?? settings.defaultServerUrl; // serverUrl 是响应式的
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Effect 读取了 roomId 和 serverUrl
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, serverUrl]); // 因此，当它们中的任何一个发生变化时，它需要重新同步！
+  // ...
+}
+```
+
+在这个例子中，`serverUrl` 不是 `prop` 或 `state` 变量。它是在渲染过程中计算的普通变量。但是它是在渲染过程中计算的，所以它可能会因为重新渲染而改变。这就是为什么它是响应式的。
+
+* 组件内部的所有值（包括 `props`、`state` 和组件体内的变量）都是响应式的。任何响应式值都可以在重新渲染时发生变化，所以需要将响应式值包括在 Effect 的依赖项中。*
+
+换句话说，Effect 对组件体内的所有值都会“react”。
+
+### 全局变量或可变值可以作为依赖项吗？ 
+可变值（包括全局变量）不是响应式的。
+
+例如，像 `location.pathname` 这样的可变值不能作为依赖项。它是可变的，因此可以在 React 渲染数据流之外的任何时间发生变化。更改它不会触发组件的重新渲染。因此，即使在依赖项中指定了它，React 也无法知道在其更改时重新同步 Effect。这也违反了 React 的规则，因为在渲染过程中读取可变数据（即在计算依赖项时）会破坏 纯粹的渲染。相反，应该使用 `useSyncExternalStore` 来读取和订阅外部可变值。
+
+另外，像 `ref.current` 或从中读取的值也不能作为依赖项。`useRef` 返回的 `ref` 对象本身可以作为依赖项，但其 `current` 属性是有意可变的。它允许 跟踪某些值而不触发重新渲染。但由于更改它不会触发重新渲染，它不是响应式值，React 不会知道在其更改时重新运行 Effect。
+
+正如你将在本页面下面学到的那样，检查工具将自动检查这些问题。
+
+
