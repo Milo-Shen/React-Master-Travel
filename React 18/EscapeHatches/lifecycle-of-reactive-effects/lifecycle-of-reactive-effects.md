@@ -538,4 +538,83 @@ function ChatRoom({ roomId, selectedServerUrl }) { // roomId 是响应式的
 
 正如你将在本页面下面学到的那样，检查工具将自动检查这些问题。
 
+### React 会验证是否将每个响应式值都指定为了依赖项 
+如果检查工具 配置了 React，它将检查 Effect 代码中使用的每个响应式值是否已声明为其依赖项。例如，以下示例是一个 lint 错误，因为 `roomId` 和 `serverUrl` 都是响应式的：
 
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) { // roomId 是响应式的
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // serverUrl 是响应式的
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // <-- 这里有些问题！
+
+  return (
+    <>
+      <label>
+        服务器 URL：{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>欢迎来到 {roomId} 房间！</h1>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        选择聊天室：{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">所有</option>
+          <option value="travel">旅游</option>
+          <option value="music">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+报错为:
+
+```
+11:6 - React Hook useEffect has missing dependencies: 'roomId' and 'serverUrl'. Either include them or remove the dependency array.
+```
+
+这可能看起来像是 React 错误，但实际上 React 是在指出代码中的 bug。`roomId` 和 `serverUrl` 都可能随时间改变，但忘记了在它们改变时重新同步 Effect。即使用户在 UI 中选择了不同的值，仍然保持连接到初始的 `roomId` 和 `serverUrl`。
+
+要修复这个 bug，请按照检查工具的建议将 `roomId` 和 `serverUrl` 作为 Effect 的依赖进行指定：
+
+```jsx
+function ChatRoom({ roomId }) { // roomId 是响应式的
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // serverUrl 是响应式的
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [serverUrl, roomId]); // ✅ 声明的所有依赖
+  // ...
+}
+```
+
+在上面的沙盒中尝试这个修复方法。验证一下是否消除了检查工具的错误，并且在需要时聊天会重新连接。
+
+#### 注意
+在某些情况下，React *知道* 一个值永远不会改变，即使它在组件内部声明。例如，从 `useState` 返回的 `set` 函数和从 `useRef` 返回的 `ref` 对象是 *稳定的* ——它们保证在重新渲染时不会改变。稳定值不是响应式的，因此可以从列表中省略它们。包括它们是允许的：它们不会改变，所以无关紧要。
