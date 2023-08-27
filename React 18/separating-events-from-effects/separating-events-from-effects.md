@@ -858,3 +858,122 @@ export default function Timer() {
   );
 }
 ```
+
+#### 修复不可调整的延迟 
+在这个示例中，你可以自定义 `interval` 延迟。它被储存在一个由两个按钮更新的 `delay` `state` 变量中。但你即使按了“加 100 ms”按钮到 `delay` 为 1000 毫秒（即 1 秒），可以注意到计时器仍然在快速增加（每 100 ms）。你对 `delay` 的修改好像被忽略了。找到并修复这个 bug。
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+  const [delay, setDelay] = useState(100);
+
+  const onTick = useEffectEvent(() => {
+    setCount(c => c + increment);
+  });
+
+  const onMount = useEffectEvent(() => {
+    return setInterval(() => {
+      onTick();
+    }, delay);
+  });
+
+  useEffect(() => {
+    const id = onMount();
+    return () => {
+      clearInterval(id);
+    }
+  }, []);
+
+  return (
+    <>
+      <h1>
+        Counter: {count}
+        <button onClick={() => setCount(0)}>Reset</button>
+      </h1>
+      <hr />
+      <p>
+        Increment by:
+        <button disabled={increment === 0} onClick={() => {
+          setIncrement(i => i - 1);
+        }}>–</button>
+        <b>{increment}</b>
+        <button onClick={() => {
+          setIncrement(i => i + 1);
+        }}>+</button>
+      </p>
+      <p>
+        Increment delay:
+        <button disabled={delay === 100} onClick={() => {
+          setDelay(d => d - 100);
+        }}>–100 ms</button>
+        <b>{delay} ms</b>
+        <button onClick={() => {
+          setDelay(d => d + 100);
+        }}>+100 ms</button>
+      </p>
+    </>
+  );
+}
+```
+
+上面这个示例的问题在于它没有考虑代码实际正在做什么就直接提取了一个叫做 `onMount` 的 Effect Event。你应该只为特定的原因提取 Effect Event：你想让代码的一部分称为非响应式。但是，`setInterval` 调用 `state` 变量 `delay` 的变化 应该 是响应式的。如果 `delay` 变化了，你想要重新设置 `interval`！为了修复这个问题，你需要将所有的响应式代码放回到 Effect 内部：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+  const [delay, setDelay] = useState(100);
+
+  const onTick = useEffectEvent(() => {
+    setCount(c => c + increment);
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      onTick();
+    }, delay);
+    return () => {
+      clearInterval(id);
+    }
+  }, [delay]);
+
+  return (
+    <>
+      <h1>
+        Counter: {count}
+        <button onClick={() => setCount(0)}>Reset</button>
+      </h1>
+      <hr />
+      <p>
+        Increment by:
+        <button disabled={increment === 0} onClick={() => {
+          setIncrement(i => i - 1);
+        }}>–</button>
+        <b>{increment}</b>
+        <button onClick={() => {
+          setIncrement(i => i + 1);
+        }}>+</button>
+      </p>
+      <p>
+        Increment delay:
+        <button disabled={delay === 100} onClick={() => {
+          setDelay(d => d - 100);
+        }}>–100 ms</button>
+        <b>{delay} ms</b>
+        <button onClick={() => {
+          setDelay(d => d + 100);
+        }}>+100 ms</button>
+      </p>
+    </>
+  );
+}
+```
+
+总的来说，你应该对像 `onMount` 这样主要关注 执行时机 而非 目的 的函数持有怀疑态度。开始可能会感觉“更具描述性”，但是可能会模糊你的意图。根据经验来说，Effect Event 应该对应从“用户的”角度发生的事情。例如，`onMessage`，`onTick`，`onVisit` 或者 `onConnected` 是优秀的 Effect Event 名称。它们内部的代码可能不需要是响应式的。另一方面，`onMount`，`onUpdate`，`onUnmount` 或者 `onAfterRender` 太通用了，以至于很容易不小心就把一些”应该”是响应式的代码放入其中。这就是为什么你应该用 用户想要什么发生 来给你的 Effect Event 命名，而不是用某些代码正好运行的时机命名。
