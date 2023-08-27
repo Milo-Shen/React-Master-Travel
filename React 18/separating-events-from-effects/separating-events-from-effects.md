@@ -804,3 +804,57 @@ Effect Event 是 Effect 代码的非响应式“片段”。他们应该在使�
 + 你可以将非响应式逻辑从 Effect 移到 Effect Event 中。
 + 只在 Effect 内部调用 Effect Event。
 + 不要将 Effect Event 传给其他组件或者 Hook。
+
+### 尝试一些挑战
+
+#### 修复一个冻结的计数器 
+`Timer` 组件保存了一个 `count` 的 `state` 变量，这个变量每秒增加一次。每次增加的值存储在 `increment` `state` 变量中，你可以使用加减按钮控制它。例如，尝试点击加号按钮九次，注意现在 `count` 每次都增加 `10` 而不是 `1`。
+
+这个用户接口有一个小问题。你可能注意到如果你每秒内按压加减按钮不止一次， 那计时器本身似乎就会暂停。它只在你最后一次按压按钮的一秒后恢复。找出为什么会发生这种现象，并修复它以便计时器能 每 秒滴答作响而不中断。
+
+问题在于 Effect 内部的代码使用了 `increment` 这个 `state` 变量。因为它是 Effect 的一个依赖项，每次 `increment` 变化都会引起 Effect 重新同步，这引起了 `interval` 清理。如果你每次有机会触发之前就清理 `interval`，它会表现得好像计时器已经停止了。
+
+为了解决这个问题，需要从 Effect 中提取一个 Effect Event `onTick`：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+
+  const onTick = useEffectEvent(() => {
+    setCount(c => c + increment);
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      onTick();
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
+  }, []);
+
+  return (
+    <>
+      <h1>
+        Counter: {count}
+        <button onClick={() => setCount(0)}>Reset</button>
+      </h1>
+      <hr />
+      <p>
+        Every second, increment by:
+        <button disabled={increment === 0} onClick={() => {
+          setIncrement(i => i - 1);
+        }}>–</button>
+        <b>{increment}</b>
+        <button onClick={() => {
+          setIncrement(i => i + 1);
+        }}>+</button>
+      </p>
+    </>
+  );
+}
+```
