@@ -177,3 +177,27 @@ function ChatRoom({ roomId }) {
 ```
 
 事件处理函数是非响应式的，所以 `sendMessage(message)` 只会在用户点击“Send”按钮的时候运行。
+
+### Effect 内部的逻辑是响应式的 
+现在让我们返回这几行代码：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    // ...
+```
+
+从用户角度出发，* `roomId` 的变化意味着他们的确想要连接到不同的房间。* 换句话说，连接房间的逻辑应该是响应式的。你 *需要* 这几行代码和响应式值“保持同步”，并在值不同时再次运行。这就是它被归入 Effect 的原因：
+
+```jsx
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect()
+    };
+  }, [roomId]);
+```
+
+Effect 是响应式的，所以 `createConnection(serverUrl, roomId)` 和 `connection.connect()` 会因为 `roomId` 每个不同的值而运行。Effect 让聊天室连接和当前选中的房间保持了同步。
