@@ -356,3 +356,137 @@ export function showNotification(message, theme) {
 
 你需要一个将这个非响应式逻辑和周围响应式 Effect 隔离开来的方法。
 
+### 声明一个 Effect Event
+
+使用 `useEffectEvent` 这个特殊的 Hook 从 Effect 中提取非响应式逻辑：
+
+```jsx
+import { useEffect, useEffectEvent } from 'react';
+
+function ChatRoom({ roomId, theme }) {
+    const onConnected = useEffectEvent(() => {
+        showNotification('Connected!', theme);
+    });
+    // ...
+}
+```
+
+这里的 onConnected 被称为 Effect Event。它是 Effect 逻辑的一部分，但是其行为更像事件处理函数。它内部的逻辑不是响应式的，*而且能一直“看见”最新的 props 和 state。*
+
+现在你可以在 Effect 内部调用 `onConnected` Effect Event：
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+    const onConnected = useEffectEvent(() => {
+        showNotification('Connected!', theme);
+    });
+
+    useEffect(() => {
+        const connection = createConnection(serverUrl, roomId);
+        connection.on('connected', () => {
+            onConnected();
+        });
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 声明所有依赖项
+    // ...
+}
+```
+
+这个方法解决了问题。注意你必须从 Effect 依赖项中 移除 `onConnected`。 *Effect Event 是非响应式的并且必须从依赖项中删除。*
+
+验证新表现是否和你预期的一样：
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Connected!', theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      onConnected();
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // 真正的实现实际上会连接到服务器
+  let connectedCallback;
+  let timeout;
+  return {
+    connect() {
+      timeout = setTimeout(() => {
+        if (connectedCallback) {
+          connectedCallback();
+        }
+      }, 100);
+    },
+    on(event, callback) {
+      if (connectedCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'connected') {
+        throw Error('Only "connected" event is supported.');
+      }
+      connectedCallback = callback;
+    },
+    disconnect() {
+      clearTimeout(timeout);
+    }
+  };
+}
+```
+
+你可以将 Effect Event 看成和事件处理函数相似的东西。主要区别是事件处理函数只在响应用户交互的时候运行，而 Effect Event 是你在 Effect 中触发的。Effect Event 让你在 Effect 响应性和不应是响应式的代码间“打破链条”。
+
+### 使用 Effect Event 读取最新的 props 和 state 
