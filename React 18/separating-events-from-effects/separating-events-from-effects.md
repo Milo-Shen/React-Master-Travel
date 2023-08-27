@@ -564,3 +564,46 @@ function Page({ url }) {
 另一方面，Effect 本身仍然是响应式的。其内部的代码使用了 `url` props，所以每次因为不同的 `url` 重新渲染后 Effect 都会重新运行。这会依次调用 `onVisit` 这个 Effect Event。
 
 结果是你会因为 `url` 的变化去调用 `logVisit`，并且读取的一直都是最新的 `numberOfItems`。但是如果 `numberOfItems` 自己变化，不会引起任何代码的重新运行。
+
+### 注意
+你可能想知道是否可以无参数调用 `onVisit()` 并且读取内部的 url：
+
+```jsx
+  const onVisit = useEffectEvent(() => {
+    logVisit(url, numberOfItems);
+  });
+
+  useEffect(() => {
+    onVisit();
+  }, [url]);
+```
+
+这可以起作用，但是更好的方法是将这个 `url` 显式传递给 Effect Event。*通过将 `url` 作为参数传给 Effect Event，你可以说从用户角度来看使用不同的 `url` 访问页面构成了一个独立的“事件”。* `visitedUrl` 是发生的“事件”的一部分：
+
+```jsx
+  const onVisit = useEffectEvent(visitedUrl => {
+    logVisit(visitedUrl, numberOfItems);
+  });
+
+  useEffect(() => {
+    onVisit(url);
+  }, [url]);
+```
+
+由于 Effect 明确“要求” `visitedUrl`，所以现在你不会不小心地从 Effect 的依赖项中移除 `url`。如果你移除了 `url` 依赖项（导致不同的页面访问被认为是一个），代码检查工具会向你提出警告。如果你想要 `onVisit` `能对` url 的变化做出响应，不要读取内部的 `url`（这里不是响应式的），而是应该将它 从 Effect 中传入。
+
+如果 Effect 内部有一些异步逻辑，这就变得非常重要了：
+
+```jsx
+  const onVisit = useEffectEvent(visitedUrl => {
+    logVisit(visitedUrl, numberOfItems);
+  });
+
+  useEffect(() => {
+    setTimeout(() => {
+      onVisit(url);
+    }, 5000); // 延迟记录访问
+  }, [url]);
+```
+
+在这里，`onVisit` 内的 `url` 对应 *最新的* `url`（可能已经变化了），但是 `visitedUrl` 对应的是最开始引起这个 Effect（并且是本次 `onVisit` 调用）运行的 `url` 。
