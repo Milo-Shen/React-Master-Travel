@@ -489,4 +489,78 @@ export function createConnection(serverUrl, roomId) {
 
 你可以将 Effect Event 看成和事件处理函数相似的东西。主要区别是事件处理函数只在响应用户交互的时候运行，而 Effect Event 是你在 Effect 中触发的。Effect Event 让你在 Effect 响应性和不应是响应式的代码间“打破链条”。
 
-### 使用 Effect Event 读取最新的 props 和 state 
+### 使用 Effect Event 读取最新的 props 和 state
+Effect Event 可以修复之前许多你可能试图抑制依赖项检查工具的地方。
+
+例如，假设你有一个记录页面访问的 Effect：
+
+```jsx
+function Page() {
+  useEffect(() => {
+    logVisit();
+  }, []);
+  // ...
+}
+```
+
+稍后向你的站点添加多个路由。现在 Page 组件接收包含当前路径的 `url` props。你想把 `url` 作为 `logVisit` 调用的一部分进行传递，但是依赖项检查工具会提示：
+
+```jsx
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+  }, []); // 🔴 React Hook useEffect 缺少一个依赖项: 'url'
+  // ...
+}
+```
+
+想想你想要代码做什么。你 需要 为不同的 `URL` 记录单独的访问，因为每个 `URL` 代表不同的页面。换言之，`logVisit` 调用对于 `url` 应该 是响应式的。这就是为什么在这种情况下， 遵循依赖项检查工具并添加 `url` 作为一个依赖项很有意义：
+
+```jsx
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+  }, [url]); // ✅ 声明所有依赖项
+  // ...
+}
+```
+
+现在假设你想在每次页面访问中包含购物车中的商品数量：
+
+```jsx
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  useEffect(() => {
+    logVisit(url, numberOfItems);
+  }, [url]); // 🔴 React Hook useEffect 缺少依赖项: ‘numberOfItems’
+  // ...
+}
+```
+
+你在 Effect 内部使用了 `numberOfItems`，所以代码检查工具会让你把它加到依赖项中。但是，你 *不* 想要 `logVisit` 调用响应 `numberOfItems`。如果用户把某样东西放入购物车， `numberOfItems` 会变化，这 *并不意味着* 用户再次访问了这个页面。换句话说，在某种意义上，*访问页面* 是一个“事件”。它发生在某个准确的时刻。
+
+将代码分割为两部分：
+
+```jsx
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  const onVisit = useEffectEvent(visitedUrl => {
+    logVisit(visitedUrl, numberOfItems);
+  });
+
+  useEffect(() => {
+    onVisit(url);
+  }, [url]); // ✅ 声明所有依赖项
+  // ...
+}
+```
+
+这里的 `onVisit` 是一个 Effect Event。里面的代码不是响应式的。这就是为什么你可以使用 `numberOfItems`（或者任意响应式值！）而不用担心引起周围代码因为变化而重新执行。
+
+另一方面，Effect 本身仍然是响应式的。其内部的代码使用了 `url` props，所以每次因为不同的 `url` 重新渲染后 Effect 都会重新运行。这会依次调用 `onVisit` 这个 Effect Event。
+
+结果是你会因为 `url` 的变化去调用 `logVisit`，并且读取的一直都是最新的 `numberOfItems`。但是如果 `numberOfItems` 自己变化，不会引起任何代码的重新运行。
