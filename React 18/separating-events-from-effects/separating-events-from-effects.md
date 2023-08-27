@@ -18,3 +18,24 @@
 
 假设你已经实现了这部分代码，但是还没有确定应该放在哪里。你是应该用事件处理函数还是 Effect 呢？每当你需要回答这个问题时，请考虑一下 为什么代码需要运行。
 
+### 事件处理函数只在响应特定的交互操作时运行 
+从用户角度出发，发送消息是 *因为* 他点击了特定的“Send”按钮。如果在任意时间或者因为其他原因发送消息，用户会觉得非常混乱。这就是为什么发送消息应该使用事件处理函数。事件处理函数是让你处理特定的交互操作的：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+  // ...
+  function handleSendClick() {
+    sendMessage(message);
+  }
+  // ...
+  return (
+    <>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>;
+    </>
+  );
+}
+```
+
+借助事件处理函数，你可以确保 `sendMessage(message)` *只* 在用户点击按钮的时候运行。
