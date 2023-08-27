@@ -217,3 +217,67 @@ export default function ChatRoom() {
 
 这可能感觉就像解方程一样。你有一个目标（例如，移除一个依赖），你需要“找到”与该目标相匹配的代码。不是每个人都觉得解方程很有趣，写 Effect 也是如此！幸运的是，下面有一些常见的解决方案你可以去尝试。
 
+### 陷阱
+如果你有一个已经存在的代码库，你可能会有一些像这样抑制 linter 的代码：
+
+```jsx
+useEffect(() => {
+  // ...
+  // 🔴 避免像这样抑制 linter 的警告或错误提示：
+  // eslint-ignore-next-line react-hooks/exhaustive-deps
+}, []);
+```
+
+*当依赖与代码不匹配时，极有可能引入 `bug`。* 通过抑制 linter，你是在 Effect 所依赖的值上对 React “撒谎”。
+
+你可以使用如下技术。
+
+### 为什么抑制 linter 对依赖的检查如此危险？
+抑制 linter 会导致非常不直观的 bug，这将很难发现和修复。这里有一个例子：
+
+```jsx
+import { useState, useEffect } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+
+  function onTick() {
+	setCount(count + increment);
+  }
+
+  useEffect(() => {
+    const id = setInterval(onTick, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <h1>
+        计数器：{count}
+        <button onClick={() => setCount(0)}>重制</button>
+      </h1>
+      <hr />
+      <p>
+        每秒递增：
+        <button disabled={increment === 0} onClick={() => {
+          setIncrement(i => i - 1);
+        }}>–</button>
+        <b>{increment}</b>
+        <button onClick={() => {
+          setIncrement(i => i + 1);
+        }}>+</button>
+      </p>
+    </>
+  );
+}
+```
+
+比方说，你想“只在 mount 时”运行 Effect。你已经知道可以通过设置 空（`[]`）依赖 来达到这种效果，所以你决定忽略 linter 的检查，强行指定 `[]` 为依赖。
+
+上面的计数器例子，本应该每秒递增，递增量可以通过两个按钮来控制。然而，由于你对 React “撒谎”，说这个 Effect 不依赖于任何东西，React 便一直使用初次渲染时的 `onTick` 函数。在后续渲染中， `count` 总是 `0` ，`increment` 总是 `1`。为什么？因为定时器每秒调用 `onTick` 函数，实际运行的是 `setCount(0 + 1)`，所以你总是看到 `1`。像这样的错误，当它们分散在多个组件中时，就更难解决了。
+
+这里有一个比忽略 linter 更好的解决方案! 那便是将 `onTick` 添加到依赖中。(为了确保 `interval` 只设置一次，使 `onTick` 成为 Effect Event。)
+
+*我们建议将依赖性 lint 错误作为一个编译错误来处理。如果你不抑制它，你将永远不会遇到像上面这样的错误*。 本页面的剩下部分将介绍这个和其他情况的替代方案。
