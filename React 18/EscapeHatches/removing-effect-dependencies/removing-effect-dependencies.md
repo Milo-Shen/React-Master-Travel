@@ -357,3 +357,120 @@ function Form() {
 ```
 
 现在，代码在事件处理程序中，它不是响应式的 —— 所以它只在用户提交表单时运行。阅读更多关于 在事件处理程序和 Effect 之间做出选择 和 如何删除不必要的 Effect。
+
+### Effect 是否在做几件不相关的事情？ 
+下一个应该问自己的问题是，Effect 是否在做几件不相关的事情。
+
+如下例子，你正在实现运输表单，用户需要选择他们的城市和地区。你根据所选的“国家”从服务器上获取“城市”列表，然后在下拉菜单中显示：
+
+```jsx
+function ShippingForm({ country }) {
+    const [cities, setCities] = useState(null);
+    const [city, setCity] = useState(null);
+
+    useEffect(() => {
+        let ignore = false;
+        fetch(`/api/cities?country=${country}`)
+            .then(response => response.json())
+            .then(json => {
+                if (!ignore) {
+                    setCities(json);
+                }
+            });
+        return () => {
+            ignore = true;
+        };
+    }, [country]); // ✅ 所有依赖已声明
+
+    // ...
+}
+```
+
+这是一个 在Effect中获取数据 的好例子：`cities` `state` 通过网络和 `country` `props` 进行“同步”。但你不能在事件处理程序中这样做，因为你需要在 `ShippingForm` 显示时和 `country` 发生变化时（不管是哪个交互导致的）立即获取。
+
+现在我们假设你要为城市区域添加第二个选择框，它应该获取当前选择的 `city` 的 `areas`。你也许会在同一个 Effect 中添加第二个 `fetch` 调用来获取地区列表：
+
+```jsx
+function ShippingForm({ country }) {
+    const [cities, setCities] = useState(null);
+    const [city, setCity] = useState(null);
+    const [areas, setAreas] = useState(null);
+
+    useEffect(() => {
+        let ignore = false;
+        fetch(`/api/cities?country=${country}`)
+            .then(response => response.json())
+            .then(json => {
+                if (!ignore) {
+                    setCities(json);
+                }
+            });
+        // 🔴 避免: 单个 Effect 同步两个独立逻辑处理
+        if (city) {
+            fetch(`/api/areas?city=${city}`)
+                .then(response => response.json())
+                .then(json => {
+                    if (!ignore) {
+                        setAreas(json);
+                    }
+                });
+        }
+        return () => {
+            ignore = true;
+        };
+    }, [country, city]); // ✅ 所有依赖已声明
+
+    // ...
+}
+```
+
+然而，由于 Effect 现在使用 `city` `state` 变量，你不得不把 `city` 加入到依赖中。这又带来一个问题：当用户选择不同的城市时，Effect 将重新运行并调用 `fetchCities(country)`。这将导致不必要地多次获取城市列表。
+
+*这段代码的问题在于，你在同步两个不同的、不相关的东西：*
+1. 你想要根据 `country` props 通过网络同步 `city` state
+2. 你想要根据 `city` 状态通过网络同步 `areas` state
+
+将逻辑分到 2 个 Effect 中，每个 Effect 仅响应其需要同步响应的 props：
+
+```jsx
+function ShippingForm({ country }) {
+    const [cities, setCities] = useState(null);
+    useEffect(() => {
+        let ignore = false;
+        fetch(`/api/cities?country=${country}`)
+            .then(response => response.json())
+            .then(json => {
+                if (!ignore) {
+                    setCities(json);
+                }
+            });
+        return () => {
+            ignore = true;
+        };
+    }, [country]); // ✅ 所有依赖已声明
+
+    const [city, setCity] = useState(null);
+    const [areas, setAreas] = useState(null);
+    useEffect(() => {
+        if (city) {
+            let ignore = false;
+            fetch(`/api/areas?city=${city}`)
+                .then(response => response.json())
+                .then(json => {
+                    if (!ignore) {
+                        setAreas(json);
+                    }
+                });
+            return () => {
+                ignore = true;
+            };
+        }
+    }, [city]); // ✅ 所有依赖已声明
+
+    // ...
+}
+```
+
+现在，第一个 Effect 只在 `country` 改变时重新运行，而第二个 Effect 在 `city` 改变时重新运行。你已经按目的把它们分开了：两件不同的事情由两个独立的 Effect 来同步。两个独立的 Effect 有两个独立的依赖，所以它们不会在无意中相互触发。
+
+最终完成的代码比最初的要长，但是拆分这些 Effect 是非常正确的。每个 Effect 应该代表一个独立的同步过程。在这个例子中，删除一个 Effect 并不会影响到另一个 Effect 的逻辑。这意味着他们 *同步不同的事情*，分开他们处理是一件好事。如果你担心重复代码的问题，你可以通过 提取相同逻辑到自定义 Hook 来提升代码质量
