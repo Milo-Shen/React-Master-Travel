@@ -474,3 +474,61 @@ function ShippingForm({ country }) {
 现在，第一个 Effect 只在 `country` 改变时重新运行，而第二个 Effect 在 `city` 改变时重新运行。你已经按目的把它们分开了：两件不同的事情由两个独立的 Effect 来同步。两个独立的 Effect 有两个独立的依赖，所以它们不会在无意中相互触发。
 
 最终完成的代码比最初的要长，但是拆分这些 Effect 是非常正确的。每个 Effect 应该代表一个独立的同步过程。在这个例子中，删除一个 Effect 并不会影响到另一个 Effect 的逻辑。这意味着他们 *同步不同的事情*，分开他们处理是一件好事。如果你担心重复代码的问题，你可以通过 提取相同逻辑到自定义 Hook 来提升代码质量
+
+### 是否在读取一些状态来计算下一个状态？ 
+每次有新的消息到达时，这个 Effect 会用新创建的数组更新 `messages` state：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+      const connection = createConnection();
+      connection.connect();
+      connection.on('message', (receivedMessage) => {
+          setMessages([...messages, receivedMessage]);
+      });
+      // ...
+  })
+}
+```
+
+它使用 `messages` 变量来 创建一个新的数组：从所有现有的消息开始，并在最后添加新的消息。然而，由于 `messages` 是一个由 Effect 读取的响应式值，它必须是一个依赖：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [messages, setMessages] = useState([]);
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            setMessages([...messages, receivedMessage]);
+        });
+        return () => connection.disconnect();
+    }, [roomId, messages]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+而让 `messages` 成为依赖会带来问题。
+
+每当你收到一条消息，`setMessages()` 就会使该组件重新渲染一个新的 `messages` 数组，其中包括收到的消息。然而，由于该 Effect 现在依赖于 `messages`，这 *也将* 重新同步该 Effect。所以每条新消息都会使聊天重新连接。用户不会喜欢这样！
+
+为了解决这个问题，不要在 Effect 里面读取 `messages`。相反，应该将一个 `state` 更新函数 传递给 `setMessages`：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [messages, setMessages] = useState([]);
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            setMessages(msgs => [...msgs, receivedMessage]);
+        });
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+*注意 Effect 现在根本不读取 `messages` 变量。* 你只需要传递一个更新函数，比如 `msgs => [...msgs, receivedMessage]`。React 将更新程序函数放入队列 并将在下一次渲染期间向其提供 `msgs` 参数。这就是 Effect 本身不再需要依赖 `messages` 的原因。修复后，接收聊天消息将不再使聊天重新连接。
+
