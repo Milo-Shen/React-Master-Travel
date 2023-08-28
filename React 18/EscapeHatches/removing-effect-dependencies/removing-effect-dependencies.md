@@ -661,3 +661,104 @@ function ChatRoom({ roomId, onReceiveMessage }) {
 ```
 
 Effect Events 不是响应式的，因此你不需要将它们指定为依赖。因此，即使父组件传递的函数在每次重新渲染时都不同，聊天也将不再重新连接。
+
+### 一些响应式值是否无意中改变了？ 
+有时，你 *确实* 希望 Effect 对某个值“做出反应”，但该值的变化比你希望的更频繁——并且可能不会从用户的角度反映任何实际变化。例如，假设你在组件中创建了 `options` 对象，然后从 Effect 内部读取该对象：
+
+```jsx
+function ChatRoom({ roomId }) {
+    // ...
+    const options = {
+        serverUrl: serverUrl,
+        roomId: roomId
+    };
+
+    useEffect(() => {
+        const connection = createConnection(options);
+        connection.connect();
+        // ...
+    })
+}
+```
+
+该对象在组件中声明，因此它是 响应式值。当你在 Effect 中读取这样的响应式值时，你将其声明为依赖。这可确保 Effect 对其更改做出“反应”：
+
+```jsx
+  // ...
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // ✅ 所有依赖已声明
+  // ...
+```
+
+将其声明为依赖很重要！例如，这可以确保如果 `roomId` 发生变化，Effect 将使用新的 `options` 重新连接到聊天。但是，上面的代码也有问题。要查看它，请尝试在下面的沙盒中输入内容，然后观察控制台中发生的情况：
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  // 暂时禁用 linter 以演示问题
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const options = {
+    serverUrl: serverUrl,
+    roomId: roomId
+  };
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]);
+
+  return (
+    <>
+      <h1>欢迎来到 {roomId} 房间！</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('所有');
+  return (
+    <>
+      <label>
+        选择聊天室：
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="所有">所有</option>
+          <option value="旅游">旅游</option>
+          <option value="音乐">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现实际上会连接到服务器
+  return {
+    connect() {
+      console.log('✅ 连接到“' + roomId + '”房间，在 ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ 断开“' + roomId + '”房间，在 ' + serverUrl);
+    }
+  };
+}
+```
