@@ -607,3 +607,57 @@ function ChatRoom({ roomId }) {
 ```
 
 Effect Events 让你可以将 Effect 分成响应式部分（应该“反应”响应式值，如 `roomId` 及其变化）和非响应式部分（只读取它们的最新值，如 `onMessage` 读取 `isMuted`）。*现在你在 Effect Event 中读取了 `isMuted`，它不需要添加到 Effect 依赖中。* 因此，当你打开或者关闭“静音”设置时，聊天不会重新连接。至此，解决原始问题！
+
+### 包装来自 props 的事件处理程序 
+当组件接收事件处理函数作为 `props` 时，你可能会遇到类似的问题：
+
+```jsx
+function ChatRoom({ roomId, onReceiveMessage }) {
+    const [messages, setMessages] = useState([]);
+
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            onReceiveMessage(receivedMessage);
+        });
+        return () => connection.disconnect();
+    }, [roomId, onReceiveMessage]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+假设父组件在每次渲染时都传递了一个 不同的 `onReceiveMessage` 函数：
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  onReceiveMessage={receivedMessage => {
+    // ...
+  }}
+/>
+```
+
+由于 `onReceiveMessage` 是依赖，它会导致 Effect 在每次父级重新渲染后重新同步。这将导致聊天重新连接。要解决此问题，请用 Effect Event 包裹之后再调用：
+
+```jsx
+function ChatRoom({ roomId, onReceiveMessage }) {
+    const [messages, setMessages] = useState([]);
+
+    const onMessage = useEffectEvent(receivedMessage => {
+        onReceiveMessage(receivedMessage);
+    });
+
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            onMessage(receivedMessage);
+        });
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+Effect Events 不是响应式的，因此你不需要将它们指定为依赖。因此，即使父组件传递的函数在每次重新渲染时都不同，聊天也将不再重新连接。
