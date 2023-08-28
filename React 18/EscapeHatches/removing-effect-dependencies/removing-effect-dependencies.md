@@ -290,3 +290,70 @@ export default function Timer() {
 
 为了找到正确的解决方案，你需要回答关于 Effect 的几个问题。让我们来看看这些问题。
 
+### 这段代码应该移到事件处理程序中吗？ 
+你应该考虑的第一件事是，这段代码是否应该成为 Effect。
+
+想象一个表单，在提交时你将 `submitted` 状态变量设置为 `true`，并在 `submitted` 为 `true` 时，需要发送 POST 请求并显示通知。你把这个逻辑放在 Effect 内，并根据 `submitted` 为 `true` “反应”。
+
+```jsx
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 避免: Effect 中有特定事件的逻辑
+      post('/api/register');
+      showNotification('Successfully registered!');
+    }
+  }, [submitted]);
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }
+
+  // ...
+}
+```
+
+后来，你想通过读取当前的主题值来调整通知信息的样式。因为 `theme` 是在组件中声明的，所以它是响应式值，你决定把它作为依赖加入：
+
+```jsx
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+  const theme = useContext(ThemeContext);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 避免: Effect 中有特定事件的逻辑
+      post('/api/register');
+      showNotification('Successfully registered!', theme);
+    }
+  }, [submitted, theme]); // ✅ 所有依赖已声明
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }  
+
+  // ...
+}
+```
+
+如果这么做，你将引入一个错误。想象一下，你先提交表单，然后切换暗亮主题。当 `theme` 改变后，Effect 重新运行，这将导致显示两次相同的通知！
+
+*首先，这里的问题是，代码不应该以 Effect 实现*。你想发送这个 POST 请求，并在 *提交表单时显示通知*，这是一个特定的交互。特定的交互请将该逻辑直接放到相应的事件处理程序中：
+
+```jsx
+function Form() {
+  const theme = useContext(ThemeContext);
+
+  function handleSubmit() {
+    // ✅ 好：从事件处理程序调用特定于事件的逻辑
+    post('/api/register');
+    showNotification('Successfully registered!', theme);
+  }  
+
+  // ...
+}
+```
+
+现在，代码在事件处理程序中，它不是响应式的 —— 所以它只在用户提交表单时运行。阅读更多关于 在事件处理程序和 Effect 之间做出选择 和 如何删除不必要的 Effect。
