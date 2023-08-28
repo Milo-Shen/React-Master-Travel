@@ -532,3 +532,78 @@ function ChatRoom({ roomId }) {
 
 *注意 Effect 现在根本不读取 `messages` 变量。* 你只需要传递一个更新函数，比如 `msgs => [...msgs, receivedMessage]`。React 将更新程序函数放入队列 并将在下一次渲染期间向其提供 `msgs` 参数。这就是 Effect 本身不再需要依赖 `messages` 的原因。修复后，接收聊天消息将不再使聊天重新连接。
 
+### 你想读取一个值而不对其变化做出“反应”吗？ 
+假设你希望在用户收到新消息时播放声音，`isMuted` 为 `true` 除外：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [messages, setMessages] = useState([]);
+    const [isMuted, setIsMuted] = useState(false);
+
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            setMessages(msgs => [...msgs, receivedMessage]);
+            if (!isMuted) {
+                playSound();
+            }
+        });
+        // ...
+    });
+}
+```
+
+由于 Effect 现在在其代码中使用了 `isMuted` ，因此你必须将其添加到依赖中：
+
+```jsx
+function ChatRoom({ roomId }) {
+    const [messages, setMessages] = useState([]);
+    const [isMuted, setIsMuted] = useState(false);
+
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            setMessages(msgs => [...msgs, receivedMessage]);
+            if (!isMuted) {
+                playSound();
+            }
+        });
+        return () => connection.disconnect();
+    }, [roomId, isMuted]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+问题是每次 `isMuted` 改变时（例如，当用户按下“静音”开关时），Effect 将重新同步，并重新连接到聊天。这不是理想的用户体验！（在此示例中，即使禁用 linter 也不起作用——如果你这样做，`isMuted` 将“保持”其旧值。）
+
+要解决这个问题，需要将不应该响应式的逻辑从 Effect 中抽取出来。你不希望此 Effect 对 `isMuted` 中的更改做出“反应”。将这段非响应式逻辑移至 Effect Event 中：
+
+```jsx
+import { useState, useEffect, useEffectEvent } from 'react';
+
+function ChatRoom({ roomId }) {
+    const [messages, setMessages] = useState([]);
+    const [isMuted, setIsMuted] = useState(false);
+
+    const onMessage = useEffectEvent(receivedMessage => {
+        setMessages(msgs => [...msgs, receivedMessage]);
+        if (!isMuted) {
+            playSound();
+        }
+    });
+
+    useEffect(() => {
+        const connection = createConnection();
+        connection.connect();
+        connection.on('message', (receivedMessage) => {
+            onMessage(receivedMessage);
+        });
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+Effect Events 让你可以将 Effect 分成响应式部分（应该“反应”响应式值，如 `roomId` 及其变化）和非响应式部分（只读取它们的最新值，如 `onMessage` 读取 `isMuted`）。*现在你在 Effect Event 中读取了 `isMuted`，它不需要添加到 Effect 依赖中。* 因此，当你打开或者关闭“静音”设置时，聊天不会重新连接。至此，解决原始问题！
