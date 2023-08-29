@@ -783,3 +783,52 @@ console.log(Object.is(options1, options2)); // false
 *对象和函数作为依赖，会使 Effect 比你需要的更频繁地重新同步。*
 
 这就是为什么你应该尽可能避免将对象和函数作为 Effect 的依赖。所以，尝试将它们移到组件外部、Effect 内部，或从中提取原始值。
+
+### 将静态对象和函数移出组件 
+如果该对象不依赖于任何 `props` 和 `state`，你可以将该对象移到组件之外：
+
+```jsx
+const options = {
+    serverUrl: 'https://localhost:1234',
+    roomId: '音乐'
+};
+
+function ChatRoom() {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        const connection = createConnection(options);
+        connection.connect();
+        return () => connection.disconnect();
+    }, []); // ✅ 所有依赖已声明
+// ...
+}
+```
+
+这样，你向 linter *证明* 它不是响应式的。它不会因为重新渲染而改变，所以它不是依赖。现在重新渲染 `ChatRoom` 不会导致 Effect 重新同步。
+
+这也适用于函数场景：
+
+```jsx
+function createOptions() {
+  return {
+    serverUrl: 'https://localhost:1234',
+    roomId: '音乐'
+  };
+}
+
+function ChatRoom() {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        const options = createOptions();
+        const connection = createConnection();
+        connection.connect();
+        return () => connection.disconnect();
+    }, []); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+由于 `createOptions` 是在组件外部声明的，因此它不是响应式值。这就是为什么它不需要在 Effect 的依赖中指定，以及为什么它永远不会导致 Effect 重新同步。
+
