@@ -998,3 +998,38 @@ function ChatRoom({ options }) {
 
 逻辑有点重复（你从 Effect 外部的对象读取一些值，然后在 Effect 内部创建具有相同值的对象）。但这使得 Effect *实际* 依赖的信息非常明确。如果对象被父组件无意中重新创建，聊天也不会重新连接。但是，如果 `options.roomId` 或 `options.serverUrl` 确实不同，聊天将重新连接。
 
+### 从函数中计算原始值 
+同样的方法也适用于函数。例如，假设父组件传递了一个函数：
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  getOptions={() => {
+    return {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+  }}
+/>
+```
+
+为避免使其成为依赖（并导致它在重新渲染时重新连接），请在 Effect 外部调用它。这为你提供了不是对象的 `roomId` 和 `serverUrl` 值，你可以从 Effect 中读取它们：
+
+```jsx
+function ChatRoom({ getOptions }) {
+    const [message, setMessage] = useState('');
+
+    const {roomId, serverUrl} = getOptions();
+    useEffect(() => {
+        const connection = createConnection({
+            roomId: roomId,
+            serverUrl: serverUrl
+        });
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId, serverUrl]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+这仅适用于 纯 函数，因为它们在渲染期间可以安全调用。如果函数是一个事件处理程序，但你不希望它的更改重新同步 Effect，将它包装到 Effect Event 中。
