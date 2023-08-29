@@ -832,3 +832,118 @@ function ChatRoom() {
 
 由于 `createOptions` 是在组件外部声明的，因此它不是响应式值。这就是为什么它不需要在 Effect 的依赖中指定，以及为什么它永远不会导致 Effect 重新同步。
 
+### 将动态对象和函数移动到 Effect 中 
+如果对象依赖于一些可能因重新渲染而改变的响应式值，例如 `roomId` props，那么你不能将它放置于组件 *外部*。你可以在 Effect *内部* 创建它：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        const options = {
+            serverUrl: serverUrl,
+            roomId: roomId
+        };
+        const connection = createConnection(options);
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+现在 `options` 已在 Effect 中声明，它不再是 Effect 的依赖。相反，Effect 使用的唯一响应式值是 `roomId`。由于 `roomId` 不是对象或函数，你可以确定它不会 *无意间* 变不同。在 JavaScript 中，数字和字符串根据它们的内容进行比较：
+
+```jsx
+// 第一次渲染
+const roomId1 = '音乐';
+
+// 下一次渲染
+const roomId2 = '音乐';
+
+// 这 2 个字符串是相同的
+console.log(Object.is(roomId1, roomId2)); // true
+```
+
+得益于此修复，当你编辑输入时，聊天将不再重新连接：
+#### App.js
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>欢迎来到 {roomId} 房间!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('所有');
+  return (
+    <>
+      <label>
+        选择聊天室:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="所有">所有</option>
+          <option value="旅游">旅游</option>
+          <option value="音乐">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+然而，当你更改 `roomId` 下拉列表时，它 确实 重新连接，正如你所期望的那样。
+
+这也适用于函数的场景：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        function createOptions() {
+            return {
+                serverUrl: serverUrl,
+                roomId: roomId
+            };
+        }
+
+        const options = createOptions();
+        const connection = createConnection(options);
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+可以编写自己的函数来组织 Effect 中的逻辑。只要将这些函数声明在 Effect *内部*，它们就不是响应式值，因此它们也不是 Effect 的依赖。
