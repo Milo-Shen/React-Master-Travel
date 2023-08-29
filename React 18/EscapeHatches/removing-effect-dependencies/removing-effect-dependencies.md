@@ -762,3 +762,24 @@ export function createConnection({ serverUrl, roomId }) {
   };
 }
 ```
+
+在上面的沙箱中，输入仅更新 `message` 状态变量。从用户的角度来看，这不应该影响聊天连接。但是，每次更新 `message` 时，组件都会重新渲染。当组件重新渲染时，其中的代码会从头开始重新运行。
+
+在每次重新渲染 `ChatRoom` 组件时，都会从头开始创建一个新的 `options` 对象。React 发现 `options` 对象与上次渲染期间创建的 `options` 对象是 不同的对象。这就是为什么它会重新同步 Effect（依赖于 `options`），并且会在你输入时重新连接聊天。
+
+*此问题仅影响对象和函数。在 JavaScript 中，每个新创建的对象和函数都被认为与其他所有对象和函数不同。即使他们的值相同也没关系！*
+
+```jsx
+// 第一次渲染
+const options1 = { serverUrl: 'https://localhost:1234', roomId: '音乐' };
+
+// 下一次渲染
+const options2 = { serverUrl: 'https://localhost:1234', roomId: '音乐' };
+
+// 这是 2 个不同的对象
+console.log(Object.is(options1, options2)); // false
+```
+
+*对象和函数作为依赖，会使 Effect 比你需要的更频繁地重新同步。*
+
+这就是为什么你应该尽可能避免将对象和函数作为 Effect 的依赖。所以，尝试将它们移到组件外部、Effect 内部，或从中提取原始值。
