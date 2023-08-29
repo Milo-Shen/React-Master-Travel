@@ -947,3 +947,54 @@ function ChatRoom({ roomId }) {
 ```
 
 可以编写自己的函数来组织 Effect 中的逻辑。只要将这些函数声明在 Effect *内部*，它们就不是响应式值，因此它们也不是 Effect 的依赖。
+
+### 从对象中读取原始值 
+有时，你可能会通过 props 接收到类型为对象的值：
+
+```jsx
+function ChatRoom({ options }) {
+    const [message, setMessage] = useState('');
+
+    useEffect(() => {
+        const connection = createConnection(options);
+        connection.connect();
+        return () => connection.disconnect();
+    }, [options]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+这里的风险是父组件会在渲染过程中创建对象：
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  options={{
+    serverUrl: serverUrl,
+    roomId: roomId
+  }}
+/>
+```
+
+这将导致 Effect 在每次父组件重新渲染时重新连接。要解决此问题，请从 Effect *外部* 读取对象信息，并避免依赖对象和函数类型：
+
+```jsx
+function ChatRoom({ options }) {
+    const [message, setMessage] = useState('');
+
+    const {roomId, serverUrl} = options;
+    
+    useEffect(() => {
+        const connection = createConnection({
+            roomId: roomId,
+            serverUrl: serverUrl
+        });
+        connection.connect();
+        return () => connection.disconnect();
+    }, [roomId, serverUrl]); // ✅ 所有依赖已声明
+    // ...
+}
+```
+
+逻辑有点重复（你从 Effect 外部的对象读取一些值，然后在 Effect 内部创建具有相同值的对象）。但这使得 Effect *实际* 依赖的信息非常明确。如果对象被父组件无意中重新创建，聊天也不会重新连接。但是，如果 `options.roomId` 或 `options.serverUrl` 确实不同，聊天将重新连接。
+
