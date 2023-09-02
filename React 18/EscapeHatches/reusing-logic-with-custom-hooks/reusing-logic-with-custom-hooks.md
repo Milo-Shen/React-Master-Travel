@@ -200,3 +200,6 @@ React 应用是由组件构成，而组件由内置或自定义 Hook 构成。�
 2. *Hook 的名称必须以后跟一个大写字母的 `use` 开头*，像 `useState`（内置） 或者 `useOnlineStatus`（像本文早前的自定义 Hook）。Hook 可以返回任意值。
 
 这个公约保证你始终能一眼识别出组件并且知道它的 `state`，Effect 以及其他的 React 特性可能“隐藏”在哪里。例如如果你在组件内部看见 `getColor()` 函数调用，就可以确定它里面不可能包含 React state，因为它的名称没有以 `use` 开头。但是像 `useOnlineStatus()` 这样的函数调用就很可能包含对内部其他 Hook 的调用！
+
+### 注意
+如果你为 React 配置了 代码检查工具，它会强制执行这个命名公约。现在滑动到上面的 `sandbox`，并将 `useOnlineStatus` 重命名为 `getOnlineStatus`。注意此时代码检查工具将不会再允许你在其内部调用 `useState` 或者 `useEffect`。只有 Hook 和组件可以调用其他 Hook！
