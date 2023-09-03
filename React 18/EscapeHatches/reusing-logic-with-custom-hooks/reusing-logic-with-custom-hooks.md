@@ -203,3 +203,55 @@ React 应用是由组件构成，而组件由内置或自定义 Hook 构成。�
 
 ### 注意
 如果你为 React 配置了 代码检查工具，它会强制执行这个命名公约。现在滑动到上面的 `sandbox`，并将 `useOnlineStatus` 重命名为 `getOnlineStatus`。注意此时代码检查工具将不会再允许你在其内部调用 `useState` 或者 `useEffect`。只有 Hook 和组件可以调用其他 Hook！
+
+### 渲染期间调用的所有函数都应该以 use 前缀开头么？ 
+不。没有 *调用* Hook 的函数不需要 *变成* Hook。
+
+如果函数没有调用任何 Hook，请避免使用 `use` 前缀。 而是 *不带* `use` 前缀把它当成常规函数去写。例如下面的 `useSorted`  没有调用 Hook，所以叫它 `getSorted`：
+
+```jsx
+// 🔴 Avoid: 没有调用其他Hook的Hook
+function useSorted(items) {
+  return items.slice().sort();
+}
+
+// ✅ Good: 没有使用Hook的常规函数
+function getSorted(items) {
+  return items.slice().sort();
+}
+```
+
+这保证你的代码可以在包含条件语句在内的任何地方调用这个常规函数：
+
+```jsx
+function List({ items, shouldSort }) {
+  let displayedItems = items;
+  if (shouldSort) {
+    // ✅ 在条件分支里调用getSorted()是没问题的，因为它不是Hook
+    displayedItems = getSorted(items);
+  }
+  // ...
+}
+```
+
+哪怕内部只使用了一个 Hook，你也应该给这个函数加 `use` 前缀（让它成为一个 Hook）：
+
+```jsx
+// ✅ Good: 一个使用了其他Hook的Hook
+function useAuth() {
+  return useContext(Auth);
+}
+```
+
+技术上 React 对此并不强制要求。原则上你可以写出不调用其他 Hook 的 Hook。但这常常会难以理解且受限，所以最好避免这种方式。但是它在极少数场景下可能是有益的。例如函数目前也许并没有使用任何 Hook，但是你计划未来在该函数内部添加一些 Hook 调用。那么使用 `use` 前缀命名就很有意义：
+
+```jsx
+// ✅ Good: 之后可能使用其他Hook的Hook
+function useAuth() {
+  // TODO: 当认证功能实现以后，替换这一行：
+  // 返回 useContext(Auth)；
+  return TEST_USER;
+}
+```
+
+接下来组件就不能在条件语句里调用这个函数。当你在内部实际添加了 Hook 调用时，这一点将变得很重要。如果你（现在或者之后）没有计划在内部使用 Hook，请不要让它变成 Hook。
