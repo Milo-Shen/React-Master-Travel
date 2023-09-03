@@ -255,3 +255,143 @@ function useAuth() {
 ```
 
 接下来组件就不能在条件语句里调用这个函数。当你在内部实际添加了 Hook 调用时，这一点将变得很重要。如果你（现在或者之后）没有计划在内部使用 Hook，请不要让它变成 Hook。
+
+### 自定义 Hook 共享的是状态逻辑，而不是状态本身 
+之前的例子里，当你开启或关闭网络时，两个组件一起更新了。但是两个组件共享 `state` 变量 `isOnline` 这种想法是错的。看这段代码：
+
+```jsx
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+它的工作方式和你之前提取的重复代码一模一样：
+
+```jsx
+function StatusBar() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    // ...
+  }, []);
+  // ...
+}
+
+function SaveButton() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    // ...
+  }, []);
+  // ...
+}
+```
+
+这是完全独立的两个 state 变量和 Effect！只是碰巧同一时间值一样，因为你使用了相同的外部值同步两个组件（无论网络是否开启）。
+
+为了更好的说明这一点，我们需要一个不同的示例。看下面的 `Form` 组件：
+
+```jsx
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('Mary');
+  const [lastName, setLastName] = useState('Poppins');
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input value={firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={lastName} onChange={handleLastNameChange} />
+      </label>
+      <p><b>Good morning, {firstName} {lastName}.</b></p>
+    </>
+  );
+}
+```
+
+每个表单域都有一部分重复的逻辑：
+
+1. 都有一个 state（`firstName` 和 `lastName`）。
+2. 都有 change 事件的处理函数（`handleFirstNameChange` 和 `handleLastNameChange`）。
+3. 都有为输入框指定 `value` 和 `onChange` 属性的 JSX。
+
+你可以提取重复的逻辑到自定义 Hook `useFormInput`：
+
+#### App.js
+```jsx
+import { useFormInput } from './useFormInput.js';
+
+export default function Form() {
+  const firstNameProps = useFormInput('Mary');
+  const lastNameProps = useFormInput('Poppins');
+
+  return (
+    <>
+      <label>
+        First name:
+        <input {...firstNameProps} />
+      </label>
+      <label>
+        Last name:
+        <input {...lastNameProps} />
+      </label>
+      <p><b>Good morning, {firstNameProps.value} {lastNameProps.value}.</b></p>
+    </>
+  );
+}
+```
+
+#### useFormInput.js
+```jsx
+import { useState } from 'react';
+
+export function useFormInput(initialValue) {
+  const [value, setValue] = useState(initialValue);
+
+  function handleChange(e) {
+    setValue(e.target.value);
+  }
+
+  const inputProps = {
+    value: value,
+    onChange: handleChange
+  };
+
+  return inputProps;
+}
+```
+
+注意它只声明了 一个 state 变量，叫做 `value`。
+
+但 `Form` 组件调用了 两次 `useFormInput`：
+
+```jsx
+function Form() {
+    const firstNameProps = useFormInput('Mary');
+    const lastNameProps = useFormInput('Poppins');
+    // ...
+}
+```
+
+这就是为什么它工作的时候像声明了两个单独的 state 变量！
+
+*自定义 Hook 共享的只是状态逻辑而不是状态本身。对 Hook 的每个调用完全独立于对同一个 Hook 的其他调用*。这就是上面两个 sandbox 结果完全相同的原因。如果愿意，你可以划上去进行比较。提取自定义 Hook 前后组件的行为是一致的。
+
+当你需要在多个组件之间共享 state 本身时，需要 将变量提升并传递下去。
