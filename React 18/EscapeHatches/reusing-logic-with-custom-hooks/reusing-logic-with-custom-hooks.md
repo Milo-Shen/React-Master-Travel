@@ -1143,3 +1143,114 @@ function ChatRoom({ roomId }) {
 ```
 
 *好的自定义 Hook 通过限制功能使代码调用更具声明性*。例如 `useChatRoom(options)` 只能连接聊天室，而 `useImpressionLog(eventName, extraData)` 只能向分析系统发送展示日志。如果你的自定义 Hook API 没有约束用例且非常抽象，那么在长期的运行中，它引入的问题可能比解决的问题更多。
+
+### 自定义 Hook 帮助你迁移到更好的模式 
+
+Effect 是一个 “逃脱方案”：当需要“走出 React”且用例没有更好的内置解决方案时你可以使用他们。随着时间的推移，React 团队的目标是通过给更具体的问题提供更具体的解决方案来最小化应用中的 Effect 数量。把你的 Effect 包裹进自定义 Hook，当这些解决方案可用时升级代码会更加容易。
+
+让我们回到这个示例：
+
+#### App.js
+```jsx
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  );
+}
+```
+
+#### useOnlineStatus
+```jsx
+import { useState, useEffect } from 'react';
+
+export function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  return isOnline;
+}
+```
+
+在上述示例中，`useOnlineStatus` 借助一组 `useState` 和 `useEffect` 实现。但这不是最好的解决方案。它有许多边界用例没有考虑到。例如假设当组件加载时，`isOnline` 已经为 `true`，但是如果网络已经离线的话这就是错误的。你可以使用浏览器的 `navigator.onLine` API 来检查，但是在生成初始 HTML 的服务端直接使用它是没用的。简而言之这段代码可以改进。
+
+幸运的是，React 18 包含了一个叫做 `useSyncExternalStore` 的专用 API，它可以解决你所有这些问题。这里展示了如何利用这个新 API 来重写你的 `useOnlineStatus` Hook：
+
+#### useOnlineStatus
+```jsx
+import { useSyncExternalStore } from 'react';
+
+function subscribe(callback) {
+    window.addEventListener('online', callback);
+    window.addEventListener('offline', callback);
+    return () => {
+        window.removeEventListener('online', callback);
+        window.removeEventListener('offline', callback);
+    };
+}
+
+export function useOnlineStatus() {
+    return useSyncExternalStore(
+        subscribe,
+        () => navigator.onLine, // 如何在客户端获取值
+        () => true // 如何在服务端获取值
+    );
+}
+```
+
+注意 *你不需要修改任何组件* 就能完成这次迁移：
+
+```jsx
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+这是把 Effect 包裹进自定义 Hook 有益的另一个原因：
+
+1. 你让进出 Effect 的数据流非常清晰。
+2. 你让组件专注于目标，而不是 Effect 的准确实现。
+3. 当 React 增加新特性时，你可以在不修改任何组件的情况下移除这些 Effect。
+
+和 设计系统 相似，你可能会发现从应用的组件中提取通用逻辑到自定义 Hook 是非常有帮助的。这会让你的组件代码专注于目标，并且避免经常写原始 Effect。许多很棒的自定义 Hook 是由 React 社区维护的。
