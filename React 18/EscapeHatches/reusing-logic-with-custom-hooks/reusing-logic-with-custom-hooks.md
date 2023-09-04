@@ -395,3 +395,352 @@ function Form() {
 *自定义 Hook 共享的只是状态逻辑而不是状态本身。对 Hook 的每个调用完全独立于对同一个 Hook 的其他调用*。这就是上面两个 sandbox 结果完全相同的原因。如果愿意，你可以划上去进行比较。提取自定义 Hook 前后组件的行为是一致的。
 
 当你需要在多个组件之间共享 state 本身时，需要 将变量提升并传递下去。
+
+### 在 Hook 之间传递响应值 
+每当组件重新渲染，自定义 Hook 中的代码就会重新运行。这就是组件和自定义 Hook 都 需要是纯函数 的原因。我们应该把自定义 Hook 的代码看作组件主体的一部分。
+
+由于自定义 Hook 会随着组件一起重新渲染，所以组件可以一直接收到最新的 `props` 和 `state`。想知道这意味着什么，那就看看这个聊天室的示例。修改 `ServeUrl` 或者 `roomID`：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+      />
+    </>
+  );
+}
+```
+
+#### chatRoom.js
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+import { showNotification } from './notifications.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input value={serverUrl} onChange={e => setServerUrl(e.target.value)} />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现会实际连接到服务器
+  if (typeof serverUrl !== 'string') {
+    throw Error('Expected serverUrl to be a string. Received: ' + serverUrl);
+  }
+  if (typeof roomId !== 'string') {
+    throw Error('Expected roomId to be a string. Received: ' + roomId);
+  }
+  let intervalId;
+  let messageCallback;
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (messageCallback) {
+          if (Math.random() > 0.5) {
+            messageCallback('hey')
+          } else {
+            messageCallback('lol');
+          }
+        }
+      }, 3000);
+    },
+    disconnect() {
+      clearInterval(intervalId);
+      messageCallback = null;
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl + '');
+    },
+    on(event, callback) {
+      if (messageCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'message') {
+        throw Error('Only "message" event is supported.');
+      }
+      messageCallback = callback;
+    },
+  };
+}
+```
+
+#### notification
+```jsx
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme = 'dark') {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+当你修改 `serverUrl` 或者 `roomId` 时，Effect 会对 你的修改做出“响应” 并重新同步。你可以通过每次修改 Effect 依赖项时聊天室重连的控制台消息来区分。
+
+现在将 Effect 代码移入自定义 Hook：
+
+```jsx
+export function useChatRoom({ serverUrl, roomId }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+这让 `ChatRoom` 组件调用自定义 Hook，而不需要担心内部怎么工作：
+
+```jsx
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input value={serverUrl} onChange={e => setServerUrl(e.target.value)} />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+这看上去简洁多了（但是它做的是同一件事）！
+
+注意逻辑 仍然响应 `props` 和 `state` 的变化。尝试编辑 `server` URL 或选中的房间：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+      />
+    </>
+  );
+}
+```
+
+#### ChatRoom.js
+```jsx
+import { useState } from 'react';
+import { useChatRoom } from './useChatRoom.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input value={serverUrl} onChange={e => setServerUrl(e.target.value)} />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+#### useChatRoom.js
+```jsx
+import { useEffect } from 'react';
+import { createConnection } from './chat.js';
+import { showNotification } from './notifications.js';
+
+export function useChatRoom({ serverUrl, roomId }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现会实际连接到服务器
+  if (typeof serverUrl !== 'string') {
+    throw Error('Expected serverUrl to be a string. Received: ' + serverUrl);
+  }
+  if (typeof roomId !== 'string') {
+    throw Error('Expected roomId to be a string. Received: ' + roomId);
+  }
+  let intervalId;
+  let messageCallback;
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (messageCallback) {
+          if (Math.random() > 0.5) {
+            messageCallback('hey')
+          } else {
+            messageCallback('lol');
+          }
+        }
+      }, 3000);
+    },
+    disconnect() {
+      clearInterval(intervalId);
+      messageCallback = null;
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl + '');
+    },
+    on(event, callback) {
+      if (messageCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'message') {
+        throw Error('Only "message" event is supported.');
+      }
+      messageCallback = callback;
+    },
+  };
+}
+```
+
+#### notification.js
+```jsx
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme = 'dark') {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+注意你如何获取 Hook 的返回值：
+
+```jsx
+export default function ChatRoom({ roomId }) {
+    const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+    useChatRoom({
+        roomId: roomId,
+        serverUrl: serverUrl
+    });
+    // ...
+}
+```
+
+并把它作为输入传给另一个 Hook：
+
+```jsx
+export default function ChatRoom({ roomId }) {
+    const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+    useChatRoom({
+        roomId: roomId,
+        serverUrl: serverUrl
+    });
+    // ...
+}
+```
+
+每次 `ChatRoom` 组件重新渲染，它就会传最新的 `roomId` 和 `serverUrl` 到你的 Hook。这就是每当重新渲染后他们的值不一样时你的 Effect 会重连聊天室的原因。（如果你曾经使用过音视频处理软件，像这样的 Hook 链也许会让你想起音视频效果链。好似 `useState` 的输出作为 `useChatRoom` 的输入）。
+
