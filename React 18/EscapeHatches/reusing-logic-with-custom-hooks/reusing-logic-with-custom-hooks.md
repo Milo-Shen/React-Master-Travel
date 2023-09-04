@@ -975,3 +975,87 @@ export function showNotification(message, theme = 'dark') {
 
 注意你不再需要为了使用它而去了解 `useChatRoom` 是 *如何* 工作的。你可以把它添加到其他任意组件，传递其他任意选项，而它会以同样的方式工作。这就是自定义 Hook 的强大之处。
 
+### 什么时候使用自定义 Hook 
+你没必要对每段重复的代码都提取自定义 Hook。一些重复是好的。例如像早前提取的包裹单个 `useState` 调用的 `useFormInput` Hook 就是没有必要的。
+
+但是每当你写 Effect 时，考虑一下把它包裹在自定义 Hook 是否更清晰。你不应该经常使用 Effect，所以如果你正在写 Effect 就意味着你需要“走出 React”和某些外部系统同步，或者需要做一些 React 中没有对应内置 API 的事。把 Effect 包裹进自定义 Hook 可以准确表达你的目标以及数据在里面是如何流动的。
+
+例如，假设 `ShippingForm` 组件展示两个下拉菜单：一个显示城市列表，另一个显示选中城市的区域列表。你可能一开始会像这样写代码：
+
+```jsx
+function ShippingForm({ country }) {
+    const [cities, setCities] = useState(null);
+    // 这个 Effect 拉取一个国家的城市数据
+    useEffect(() => {
+        let ignore = false;
+        fetch(`/api/cities?country=${country}`)
+            .then(response => response.json())
+            .then(json => {
+                if (!ignore) {
+                    setCities(json);
+                }
+            });
+        return () => {
+            ignore = true;
+        };
+    }, [country]);
+
+    const [city, setCity] = useState(null);
+    const [areas, setAreas] = useState(null);
+    // 这个 Effect 拉取选中城市的区域列表
+    useEffect(() => {
+        if (city) {
+            let ignore = false;
+            fetch(`/api/areas?city=${city}`)
+                .then(response => response.json())
+                .then(json => {
+                    if (!ignore) {
+                        setAreas(json);
+                    }
+                });
+            return () => {
+                ignore = true;
+            };
+        }
+    }, [city]);
+
+    // ...
+}
+```
+
+尽管这部分代码是重复的，但是 把这些 Effect 各自分开是正确的。他们同步两件不同的事情，所以不应该把他们合并到同一个 Effect。而是提取其中的通用逻辑到你自己的 `useData` Hook 来简化上面的 `ShippingForm` 组件：
+
+```jsx
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (url) {
+      let ignore = false;
+      fetch(url)
+        .then(response => response.json())
+        .then(json => {
+          if (!ignore) {
+            setData(json);
+          }
+        });
+      return () => {
+        ignore = true;
+      };
+    }
+  }, [url]);
+  return data;
+}
+```
+
+现在你可以在 `ShippingForm` 组件中调用 `useData` 替换两个 Effect：
+
+```jsx
+function ShippingForm({ country }) {
+    const cities = useData(`/api/cities?country=${country}`);
+    const [city, setCity] = useState(null);
+    const areas = useData(city ? `/api/areas?city=${city}` : null);
+    // ...
+}
+```
+
+提取自定义 Hook 让数据流清晰。输入 `url`，就会输出 `data`。通过把 Effect “隐藏”在 `useData` 内部，你也可以防止一些正在处理 `ShippingForm` 组件的人向里面添加 不必要的依赖。随着时间的推移，应用中大部分 Effect 都会存在于自定义 Hook 内部。
