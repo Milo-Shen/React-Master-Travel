@@ -1059,3 +1059,5 @@ function ShippingForm({ country }) {
 ```
 
 提取自定义 Hook 让数据流清晰。输入 `url`，就会输出 `data`。通过把 Effect “隐藏”在 `useData` 内部，你也可以防止一些正在处理 `ShippingForm` 组件的人向里面添加 不必要的依赖。随着时间的推移，应用中大部分 Effect 都会存在于自定义 Hook 内部。
+
+### 让你的自定义 Hook 专注于具体的高级用例 
