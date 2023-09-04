@@ -1060,4 +1060,86 @@ function ShippingForm({ country }) {
 
 提取自定义 Hook 让数据流清晰。输入 `url`，就会输出 `data`。通过把 Effect “隐藏”在 `useData` 内部，你也可以防止一些正在处理 `ShippingForm` 组件的人向里面添加 不必要的依赖。随着时间的推移，应用中大部分 Effect 都会存在于自定义 Hook 内部。
 
-### 让你的自定义 Hook 专注于具体的高级用例 
+### 让你的自定义 Hook 专注于具体的高级用例
+从选择自定义 Hook 名称开始。如果你难以选择一个清晰的名称，这可能意味着你的 Effect 和组件逻辑剩余的部分耦合度太高，还没有做好被提取的准备。
+
+理想情况下，你的自定义 Hook 名称应该清晰到即使一个不经常写代码的人也能很好地猜中自定义 Hook 的功能，输入和返回：
+
++ ✅ useData(url)
++ ✅ useImpressionLog(eventName, extraData)
++ ✅ useChatRoom(options)
+
+当你和外部系统同步的时候，你的自定义 Hook 名称可能会更加专业，并使用该系统特定的术语。只要对熟悉这个系统的人来说名称清晰就可以：
+
++ ✅ useMediaQuery(query)
++ ✅ useSocket(url)
++ ✅ useIntersectionObserver(ref, options)
+
+*保持自定义 Hook 专注于具体的高级用例*。避免创建和使用作为 `useEffect` API 本身的替代品和 wrapper 的自定义“生命周期” Hook：
+
++ 🔴 useMount(fn)
++ 🔴 useEffectOnce(fn)
++ 🔴 useUpdateEffect(fn)
+
+例如这个 `useMount` Hook 试图保证一些代码只在“加载”时运行：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // 🔴 Avoid: 使用自定义“生命周期” Hook
+  useMount(() => {
+    const connection = createConnection({ roomId, serverUrl });
+    connection.connect();
+
+    post('/analytics/event', { eventName: 'visit_chat' });
+  });
+  // ...
+}
+
+// 🔴 Avoid: 创建自定义“生命周期” Hook
+function useMount(fn) {
+  useEffect(() => {
+    fn();
+  }, []); // 🔴 React Hook useEffect 缺少依赖项: 'fn'
+}
+```
+
+*像 `useMount` 这样的自定义“生命周期” Hook 不是很适合 React 范式*。例如示例代码有一个错误（它没有对 `roomId` 或 `serverUrl` 的变化做出“响应” ），但是代码检查工具并不会向你发出对应的警告，因为它只能检测 `useEffect` 的直接调用。并不了解你的 Hook。
+
+如果你正在编写 Effect，请从直接使用 React API 开始：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ Good: 通过用途分割的两个原始Effect
+
+  useEffect(() => {
+    const connection = createConnection({ serverUrl, roomId });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [serverUrl, roomId]);
+
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_chat', roomId });
+  }, [roomId]);
+
+  // ...
+}
+```
+
+然后你可以（但不是必须的）为不同的高级用例提取自定义 Hook：
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ Great: 以用途命名的自定义Hook
+  useChatRoom({ serverUrl, roomId });
+  useImpressionLog('visit_chat', { roomId });
+  // ...
+}
+```
+
+*好的自定义 Hook 通过限制功能使代码调用更具声明性*。例如 `useChatRoom(options)` 只能连接聊天室，而 `useImpressionLog(eventName, extraData)` 只能向分析系统发送展示日志。如果你的自定义 Hook API 没有约束用例且非常抽象，那么在长期的运行中，它引入的问题可能比解决的问题更多。
