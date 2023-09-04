@@ -744,3 +744,234 @@ export default function ChatRoom({ roomId }) {
 
 每次 `ChatRoom` 组件重新渲染，它就会传最新的 `roomId` 和 `serverUrl` 到你的 Hook。这就是每当重新渲染后他们的值不一样时你的 Effect 会重连聊天室的原因。（如果你曾经使用过音视频处理软件，像这样的 Hook 链也许会让你想起音视频效果链。好似 `useState` 的输出作为 `useChatRoom` 的输入）。
 
+### 把事件处理函数传到自定义 Hook 中 
+当你在更多组件中使用 `useChatRoom` 时，你可能希望组件能 *定制* 它的行为。例如现在 Hook 内部收到消息的处理逻辑是硬编码：
+
+```jsx
+export function useChatRoom({ serverUrl, roomId }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+假设你想把这个逻辑移回到组件中：
+
+```jsx
+export default function ChatRoom({ roomId }) {
+    const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+    useChatRoom({
+        roomId: roomId,
+        serverUrl: serverUrl,
+        onReceiveMessage(msg) {
+            showNotification('New message: ' + msg);
+        }
+    });
+    // ...
+}
+```
+
+完成这个工作需要修改自定义 Hook，把 `onReceiveMessage` 作为其命名选项之一：
+
+```jsx
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onReceiveMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl, onReceiveMessage]); // ✅ 声明了所有的依赖
+}
+```
+
+这个修改有效果，但是当自定义 Hook 接受事件处理函数时，你还可以进一步改进。
+
+增加对 `onReceiveMessage` 的依赖并不理想，*因为每次组件重新渲染时聊天室就会重新连接*。 通过 将这个事件处理函数包裹到 Effect Event 中来将它从依赖中移除：
+
+```jsx
+import { useEffect, useEffectEvent } from 'react';
+// ...
+
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  const onMessage = useEffectEvent(onReceiveMessage);
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ 声明所有依赖
+}
+```
+
+现在每次 `ChatRoom` 组件重新渲染时聊天室都不会重连。这是一个将事件处理函数传给自定义 Hook 的完整且有效的 demo，你可以尝试一下：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+      />
+    </>
+  );
+}
+```
+
+#### ChatRoom.js
+```jsx
+import { useState } from 'react';
+import { useChatRoom } from './useChatRoom.js';
+import { showNotification } from './notifications.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+    onReceiveMessage(msg) {
+      showNotification('New message: ' + msg);
+    }
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input value={serverUrl} onChange={e => setServerUrl(e.target.value)} />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+#### useChatRoom.js
+```jsx
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection } from './chat.js';
+
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  const onMessage = useEffectEvent(onReceiveMessage);
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+#### chat.js
+```jsx
+export function createConnection({ serverUrl, roomId }) {
+  // 真正的实现会实际连接到服务器
+  if (typeof serverUrl !== 'string') {
+    throw Error('Expected serverUrl to be a string. Received: ' + serverUrl);
+  }
+  if (typeof roomId !== 'string') {
+    throw Error('Expected roomId to be a string. Received: ' + roomId);
+  }
+  let intervalId;
+  let messageCallback;
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (messageCallback) {
+          if (Math.random() > 0.5) {
+            messageCallback('hey')
+          } else {
+            messageCallback('lol');
+          }
+        }
+      }, 3000);
+    },
+    disconnect() {
+      clearInterval(intervalId);
+      messageCallback = null;
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl + '');
+    },
+    on(event, callback) {
+      if (messageCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'message') {
+        throw Error('Only "message" event is supported.');
+      }
+      messageCallback = callback;
+    },
+  };
+}
+```
+
+#### notification.js
+```jsx
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme = 'dark') {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+注意你不再需要为了使用它而去了解 `useChatRoom` 是 *如何* 工作的。你可以把它添加到其他任意组件，传递其他任意选项，而它会以同样的方式工作。这就是自定义 Hook 的强大之处。
+
