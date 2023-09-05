@@ -1254,3 +1254,19 @@ function SaveButton() {
 3. 当 React 增加新特性时，你可以在不修改任何组件的情况下移除这些 Effect。
 
 和 设计系统 相似，你可能会发现从应用的组件中提取通用逻辑到自定义 Hook 是非常有帮助的。这会让你的组件代码专注于目标，并且避免经常写原始 Effect。许多很棒的自定义 Hook 是由 React 社区维护的。
+
+### React 会为数据获取提供内置解决方案么？ 
+我们仍然在规划细节，但是期望未来可以像这样写数据获取：
+
+```jsx
+import { use } from 'react'; // 还不可用！
+
+function ShippingForm({ country }) {
+    const cities = use(fetch(`/api/cities?country=${country}`));
+    const [city, setCity] = useState(null);
+    const areas = city ? use(fetch(`/api/areas?city=${city}`)) : null;
+    // ...
+}
+```
+
+比起在每个组件手动写原始 Effect，在应用中使用像上面 useData 这样的自定义 Hook，之后迁移到最终推荐方式你所需要的修改更少。但是旧的方式仍然可以有效工作，所以如果你喜欢写原始 Effect，可以继续这样做。
