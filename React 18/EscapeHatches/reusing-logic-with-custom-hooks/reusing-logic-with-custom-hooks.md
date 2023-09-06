@@ -1601,3 +1601,45 @@ export default function App() {
 + 把自定义 Hook 收到的事件处理函数包裹到 Effect Event。
 + 不要创建像 useMount 这样的自定义 Hook。保持目标具体化。
 + 如何以及在哪里选择代码边界取决于你。
+
+## 尝试一些挑战
+### 第 1 个挑战 共 5 个挑战: 提取 `useCounter` Hook 
+
+这个组件使用了一个 `state` 变量和一个 Effect 来展示每秒递增的一个数字。把这个逻辑提取到一个 `useCounter` 的自定义 Hook 中。你的目标是让 `Counter` 组件的实现看上去和这个一样：
+
+```jsx
+export default function Counter() {
+  const count = useCounter();
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+你需要在 `useCounter.js` 中编写你的自定义 Hook，并且把它引入到 `Counter.js` 文件。
+
+#### App.js
+```jsx
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const count = useCounter();
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+#### useCounter.js
+```jsx
+import { useState, useEffect } from 'react';
+
+export function useCounter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return count;
+}
+```
+
+注意 `App.js` 不再需要引入 `useState` 或者 `useEffect`。
