@@ -1643,3 +1643,52 @@ export function useCounter() {
 ```
 
 注意 `App.js` 不再需要引入 `useState` 或者 `useEffect`。
+
+### 第 2 个挑战 共 5 个挑战: 让计时器的 delay 变为可配置项 
+这个示例中有一个由滑动条控制的 `state` 变量 `delay`，但它的值没有被使用。请将 `delay` 值传给自定义 Hook `useCounter`，修改 `useCounter` Hook，用传过去的 `delay` 代替硬编码 `1000` 毫秒。
+
+使用 `useCounter(delay)` 将 `delay` 传入 Hook。然后在 Hook 内部使用 `delay` 替换硬编码值 `1000`。你需要在 Effect 依赖项中加入 `delay`。这保证了 `delay` 的变化会重置 `interval`。
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const [delay, setDelay] = useState(1000);
+  const count = useCounter(delay);
+  return (
+    <>
+      <label>
+        Tick duration: {delay} ms
+        <br />
+        <input
+          type="range"
+          value={delay}
+          min="10"
+          max="2000"
+          onChange={e => setDelay(Number(e.target.value))}
+        />
+      </label>
+      <hr />
+      <h1>Ticks: {count}</h1>
+    </>
+  );
+}
+```
+
+#### useCounter.js
+```jsx
+import { useState, useEffect } from 'react';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, delay);
+    return () => clearInterval(id);
+  }, [delay]);
+  return count;
+}
+```
