@@ -1822,3 +1822,60 @@ export function useInterval(callback, delay) {
 }
 
 ```
+
+### 也可以用 useCallback 达到和 useEffectEvent 一样的效果
+
+#### App.js
+```jsx
+import { useCallback } from 'react';
+import { useCounter } from './useCounter.js';
+import { useInterval } from './useInterval.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+  
+  let inner = useCallback(() => {
+    const randomColor = `hsla(${Math.random() * 360}, 100%, 50%, 0.2)`;
+    document.body.style.backgroundColor = randomColor;
+  }, []);
+
+  useInterval(inner, 2000);
+
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+#### useCounter.js
+```jsx
+import { useState, useCallback } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  
+  let inner = useCallback(() => {
+    setCount(c => c + 1);
+  }, []);
+  
+  useInterval(inner, delay);
+  
+  return count;
+}
+```
+
+#### useInterval.js
+```jsx
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useInterval(onTick, delay) {
+  useEffect(() => {
+    console.log('✅ Setting up an interval with delay ', delay)
+    const id = setInterval(onTick, delay);
+    return () => {
+      console.log('❌ Clearing an interval with delay ', delay)
+      clearInterval(id);
+    };
+  }, [onTick, delay]);
+}
+```
