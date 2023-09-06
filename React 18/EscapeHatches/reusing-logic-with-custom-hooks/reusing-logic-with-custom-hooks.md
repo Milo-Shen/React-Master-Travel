@@ -1747,3 +1747,78 @@ export function useInterval(onTick, delay) {
 ```
 
 注意这个解决方案有一些问题，你将在下一个挑战中解决他们。
+
+### 第 4 个挑战 共 5 个挑战: 修复计时器重置 
+这个示例有 *两个* 独立的计时器。
+
+App 组件调用 `useCounter`，这个 Hook 调用 `useInterval` 来每秒更新一次计数器。但是 App 组件 也 调用 `useInterval` 每两秒随机更新一次页面背景色。
+
+更新页面背景色的回调函数因为一些原因从未执行过。在 `useInterval` 内部添加一些日志。
+
+```jsx
+  useEffect(() => {
+    console.log('✅ Setting up an interval with delay ', delay)
+    const id = setInterval(onTick, delay);
+    return () => {
+      console.log('❌ Clearing an interval with delay ', delay)
+      clearInterval(id);
+    };
+  }, [onTick, delay]);
+```
+
+这些日志符合你的预期吗？如果一些不必要的 Effect 似乎重新同步了，你能猜出哪一个依赖项导致了这个情况吗？有其他方式从 Effect 中 移除依赖 吗？
+
+这个问题修复以后，你预期的应该是页面背景每两秒更新一次。
+
+和 早前这个页面 做的一样，在 `useInterval` 内部把 `tick` 回调函数包裹进一个 Effect Event。
+
+这将让你可以从 Effect 的依赖项中删掉 `onTick`。每次组件重新渲染时，Effect 将不会重新同步，所以页面背景颜色变化 `interval` 有机会触发之前不会每秒重置一次。
+
+随着这个修改，两个 interval 都会像预期一样工作并且不会互相干扰：
+
+#### App.js
+```jsx
+import { useCounter } from './useCounter.js';
+import { useInterval } from './useInterval.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+
+  useInterval(() => {
+    const randomColor = `hsla(${Math.random() * 360}, 100%, 50%, 0.2)`;
+    document.body.style.backgroundColor = randomColor;
+  }, 2000);
+
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+#### useCount.js
+```jsx
+import { useState } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+#### useInterval
+```jsx
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useInterval(callback, delay) {
+    const onTick = useEffectEvent(callback);
+    useEffect(() => {
+        console.log('✅ Setting up an interval with delay ', delay)
+        const id = setInterval(onTick, delay);
+        return () => clearInterval(id);
+    }, [delay]);
+}
+
+```
