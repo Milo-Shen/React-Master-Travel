@@ -1692,3 +1692,58 @@ export function useCounter(delay) {
   return count;
 }
 ```
+
+### 第 3 个挑战 共 5 个挑战: 从 `useCounter` 中提取 `useInterval` 
+现在 `useCounter` Hook 做两件事。设置一个 `interval`，并且在每个 `interval` tick 内递增一次 `state` 变量。将设置 `interval` 的逻辑拆分到一个独立 Hook `useInterval`。它应该有两个参数：`onTick` 回调函数和 `delay`。本次修改后 `useCounter` 的实现应该如下所示：
+
+```jsx
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+在 `useInterval.js` 文件中编写 `useInterval` 并在 `useCounter.js` 文件中导入。
+
+`useInterval` 内部的逻辑应该是设置和清理计时器。除此之外不需要做任何事。
+
+#### App.js
+```jsx
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+#### useCounter.js
+```jsx
+import { useState } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+#### useInterval.js
+```jsx
+import { useEffect } from 'react';
+
+export function useInterval(onTick, delay) {
+  useEffect(() => {
+    const id = setInterval(onTick, delay);
+    return () => clearInterval(id);
+  }, [onTick, delay]);
+}
+```
+
+注意这个解决方案有一些问题，你将在下一个挑战中解决他们。
