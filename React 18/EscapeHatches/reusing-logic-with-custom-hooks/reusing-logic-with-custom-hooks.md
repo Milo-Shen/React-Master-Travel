@@ -1879,3 +1879,84 @@ export function useInterval(onTick, delay) {
   }, [onTick, delay]);
 }
 ```
+
+### 第 5 个挑战 共 5 个挑战: 实现交错运动 
+
+这个示例中，`usePointerPosition(`) Hook 追踪当前指针位置。尝试移动光标或你的手指到预览区域上方，可以看到有一个红点随着你移动。它的位置被保存在变量 `pos1` 中。
+
+事实上，有 5（!）个正在被渲染的不同红点。你看不见是因为他们现在都显示在同一位置。这就是你需要修复的问题。你想要实现的是一个“交错”运动：每个圆点应该“跟随”它前一个点的路径。例如如果你快速移动光标，第一个点应该立刻跟着它，第二个应该在小小的延时后跟上第一个点，第三个点应该跟着第二个点等等。
+
+你需要实现自定义 Hook `useDelayedValue`。它当前的实现返回的是提供给它的 `value`。而你想从 `delay` 毫秒之前返回 `value`。你可能需要一些 `state` 和一个 `Effect` 来完成这个任务。
+
+实现 `useDelayedValue` 后，你应该看见这些点一个接一个运动。
+
+这里是一个生效的版本。你将 `delayedValue` 保存为一个 `state` 变量。当 `value` 更新时，Effect 会安排一个 `timeout` 来更新 `delayedValue`。这就是 `delayedValue` 总是“滞后于”实际 `value` 的原因。
+
+#### App.js
+```jsx
+import { useState, useEffect } from 'react';
+import { usePointerPosition } from './usePointerPosition.js';
+
+function useDelayedValue(value, delay) {
+  const [delayedValue, setDelayedValue] = useState(value);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setDelayedValue(value);
+    }, delay);
+  }, [value, delay]);
+
+  return delayedValue;
+}
+
+export default function Canvas() {
+  const pos1 = usePointerPosition();
+  const pos2 = useDelayedValue(pos1, 100);
+  const pos3 = useDelayedValue(pos2, 200);
+  const pos4 = useDelayedValue(pos3, 100);
+  const pos5 = useDelayedValue(pos3, 50);
+  return (
+    <>
+      <Dot position={pos1} opacity={1} />
+      <Dot position={pos2} opacity={0.8} />
+      <Dot position={pos3} opacity={0.6} />
+      <Dot position={pos4} opacity={0.4} />
+      <Dot position={pos5} opacity={0.2} />
+    </>
+  );
+}
+
+function Dot({ position, opacity }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      backgroundColor: 'pink',
+      borderRadius: '50%',
+      opacity,
+      transform: `translate(${position.x}px, ${position.y}px)`,
+      pointerEvents: 'none',
+      left: -20,
+      top: -20,
+      width: 40,
+      height: 40,
+    }} />
+  );
+}
+```
+
+#### usePointerPosition.js
+```jsx
+import { useState, useEffect } from 'react';
+
+export function usePointerPosition() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    function handleMove(e) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+    window.addEventListener('pointermove', handleMove);
+    return () => window.removeEventListener('pointermove', handleMove);
+  }, []);
+  return position;
+}
+```
