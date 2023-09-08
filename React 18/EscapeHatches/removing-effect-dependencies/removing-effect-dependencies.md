@@ -1045,3 +1045,56 @@ function ChatRoom({ getOptions }) {
 + 如果你想读取最新值而不“反应”它，请从 Effect 中提取出一个 Effect Event。
 + 在 JavaScript 中，如果对象和函数是在不同时间创建的，则它们被认为是不同的。
 + 尽量避免对象和函数依赖。将它们移到组件外或 Effect 内。
+
+## 尝试一些挑战
+### 第 1 个挑战 共 4 个挑战: 修复重置 interval 
+
+这个 Effect 设置了一个每秒运行的 `interval`。你已经注意到一些奇怪的事情：`似乎每次` interval 都会被销毁并重新创建。修复代码，使 `interval` 不会被不断重新创建。
+
+```jsx
+import { useState, useEffect } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    console.log('✅ 创建定时器');
+    const id = setInterval(() => {
+      console.log('⏰ Interval');
+      setCount(count + 1);
+    }, 1000);
+    return () => {
+      console.log('❌ 清除定时器');
+      clearInterval(id);
+    };
+  }, [count]);
+
+  return <h1>计数器: {count}</h1>
+}
+```
+
+修复后：
+
+你想要从 Effect 内部将 `count` 状态更新为 `count + 1`。但是，这会使 Effect 依赖于 `count`，它会随着每次滴答而变化，这就是为什么 `interval` 会在每次滴答时重新创建。
+
+```jsx
+import { useState, useEffect } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    console.log('✅ 创建定时器');
+    const id = setInterval(() => {
+      console.log('⏰ Interval');
+      setCount(c => c + 1);
+    }, 1000);
+    return () => {
+      console.log('❌ 清除定时器');
+      clearInterval(id);
+    };
+  }, []);
+
+  return <h1>计数器: {count}</h1>
+}
+```
