@@ -1233,3 +1233,70 @@ export default function App() {
 ```
 
 像 `onAppear` 这样的 Effect Events 不是响应式的，因此你可以在不重新触发动画的情况下读取内部的 duration。
+
+### 第 3 个挑战 共 4 个挑战: 修复聊天重新连接的问题 
+在此示例中，每次你按“切换主题”时，聊天都会重新连接。为什么会这样？修复错误，只有当你编辑服务器 `URL` 或选择不同的聊天室时，聊天才会重新连接。
+
+将 `chat.js` 视为外部第三方库：你可以查阅它以检查其 API，但不要对其进行编辑。
+
+```jsx
+import { useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom({ options }) {
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]);
+
+  return <h1>欢迎来到 {options.roomId} 房间！</h1>;
+}
+```
+
+修改后：
+
+Effect 因依赖于 options 对象，导致其重新运行。对象可能会在无意中被重新创建，你应该尽可能避免将它们作为 Effect 的依赖。
+
+侵入性最小的修复方法是在 Effect 外部读取 `roomId` 和 `serverUrl`，然后使 Effect 依赖于这些原始值（不能无意地更改）。在 Effect 内部，创建一个对象并将其传递给 `createConnection`：
+
+```jsx
+import { useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom({ options }) {
+  const { roomId, serverUrl } = options;
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return <h1>欢迎来到 {options.roomId} 房间！</h1>;
+}
+```
+
+用更具体的 `roomId` 和 `serverUrl` props 替换对象 `options` props 会更好：
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom({ roomId, serverUrl }) {
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+```
+
+尽可能坚持使用原始 props，以便以后更容易优化组件。
