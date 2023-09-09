@@ -1098,3 +1098,138 @@ export default function Timer() {
   return <h1>计数器: {count}</h1>
 }
 ```
+
+### 第 2 个挑战 共 4 个挑战: 修复重新触发动画的问题 
+在此示例中，当你按下“显示”时，欢迎消息淡入。动画持续一秒钟。当你按下“移除”时，欢迎信息立即消失。淡入动画的逻辑在 `animation.js` 文件中以纯 JavaScript 动画循环 实现。你不需要改变那个逻辑。你可以将其视为第三方库。Effect 的逻辑是为 DOM 节点创建一个 `FadeInAnimation` 实例，然后调用 `start(duration)` 或 `stop()` 来控制动画。`duration` 由滑块控制。调整滑块并查看动画如何变化。
+
+此代码已经能工作，但你需要更改一些内容。目前，当你移动控制 `duration` 状态变量的滑块时，它会重新触发动画。更改行为，使 Effect 不会对 `duration` 变量做出“反应”。当你按下“显示”时，Effect 应该使用滑块上的当前 `duration` 值。但是，移动滑块本身不应重新触发动画。
+
+```jsx
+import { useState, useEffect, useRef } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { FadeInAnimation } from './animation.js';
+
+function Welcome({ duration }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const animation = new FadeInAnimation(ref.current);
+    animation.start(duration);
+    return () => {
+      animation.stop();
+    };
+  }, [duration]);
+
+  return (
+    <h1
+      ref={ref}
+      style={{
+        opacity: 0,
+        color: 'white',
+        padding: 50,
+        textAlign: 'center',
+        fontSize: 50,
+        backgroundImage: 'radial-gradient(circle, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%)'
+      }}
+    >
+      欢迎
+    </h1>
+  );
+}
+
+export default function App() {
+  const [duration, setDuration] = useState(1000);
+  const [show, setShow] = useState(false);
+
+  return (
+    <>
+      <label>
+        <input
+          type="range"
+          min="100"
+          max="3000"
+          value={duration}
+          onChange={e => setDuration(Number(e.target.value))}
+        />
+        <br />
+        淡入 interval: {duration} ms
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? '移除' : '显示'}
+      </button>
+      <hr />
+      {show && <Welcome duration={duration} />}
+    </>
+  );
+}
+```
+
+修改后：
+
+Effect 需要读取 `duration` 的最新值，但你不希望它对 `duration` 的变化做出“反应”。你使用 `duration` 来启动动画，但启动动画不是响应式的。将非响应式代码行提取到 Effect Event 中，并从 Effect 中调用该函数。
+
+```jsx
+import { useState, useEffect, useRef } from 'react';
+import { FadeInAnimation } from './animation.js';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+function Welcome({ duration }) {
+  const ref = useRef(null);
+
+  const onAppear = useEffectEvent(animation => {
+    animation.start(duration);
+  });
+
+  useEffect(() => {
+    const animation = new FadeInAnimation(ref.current);
+    onAppear(animation);
+    return () => {
+      animation.stop();
+    };
+  }, []);
+
+  return (
+    <h1
+      ref={ref}
+      style={{
+        opacity: 0,
+        color: 'white',
+        padding: 50,
+        textAlign: 'center',
+        fontSize: 50,
+        backgroundImage: 'radial-gradient(circle, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%)'
+      }}
+    >
+      欢迎
+    </h1>
+  );
+}
+
+export default function App() {
+  const [duration, setDuration] = useState(1000);
+  const [show, setShow] = useState(false);
+
+  return (
+    <>
+      <label>
+        <input
+          type="range"
+          min="100"
+          max="3000"
+          value={duration}
+          onChange={e => setDuration(Number(e.target.value))}
+        />
+        <br />
+        淡入 interval: {duration} ms
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? '移除' : '显示'}
+      </button>
+      <hr />
+      {show && <Welcome duration={duration} />}
+    </>
+  );
+}
+```
+
+像 `onAppear` 这样的 Effect Events 不是响应式的，因此你可以在不重新触发动画的情况下读取内部的 duration。
