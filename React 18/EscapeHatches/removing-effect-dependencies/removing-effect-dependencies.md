@@ -1300,3 +1300,275 @@ export default function ChatRoom({ roomId, serverUrl }) {
 ```
 
 尽可能坚持使用原始 props，以便以后更容易优化组件。
+
+### 第 4 个挑战 共 4 个挑战: 再次修复聊天重新连接的问题 
+此示例使用或不使用加密连接到聊天。切换复选框并注意加密打开和关闭时控制台中的不同消息。换个房间试试，然后，尝试切换主题。当你连接到聊天室时，每隔几秒钟就会收到一条新消息。验证它们的颜色是否与你选择的主题相匹配。
+
+在此示例中，每次你尝试更改主题时聊天都会重新连接。解决这个问题。修复后，更改主题不应重新连接聊天，但切换加密设置或更改房间应重新连接。
+
+不要更改 `chat.js` 中的任何代码。除此之外，你可以更改任何代码，只要它引起相同的行为。例如，你可能会发现更改正在传递的 props 很有帮助。
+
+#### App.js
+```jsx
+import { useState, useCallback } from 'react';
+import ChatRoom from './ChatRoom.js';
+import {
+  createEncryptedConnection,
+  createUnencryptedConnection,
+} from './chat.js';
+import { showNotification } from './notifications.js';
+
+export default function App() {
+  const [isDark, setIsDark] = useState(false);
+  const [roomId, setRoomId] = useState('所有');
+  const [isEncrypted, setIsEncrypted] = useState(false);
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        使用暗黑主题
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isEncrypted}
+          onChange={e => setIsEncrypted(e.target.checked)}
+        />
+        开启加密功能
+      </label>
+      <label>
+        选择聊天室：
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="所有">所有</option>
+          <option value="旅游">旅游</option>
+          <option value="音乐">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        onMessage={msg => {
+          showNotification('新消息：' + msg, isDark ? 'dark' : 'light');
+        }}
+        createConnection={() => {
+          const options = {
+            serverUrl: 'https://localhost:1234',
+            roomId: roomId
+          };
+          if (isEncrypted) {
+            return createEncryptedConnection(options);
+          } else {
+            return createUnencryptedConnection(options);
+          }
+        }}
+      />
+    </>
+  );
+}
+```
+
+#### ChatRoom.js
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function ChatRoom({ roomId, createConnection, onMessage }) {
+  useEffect(() => {
+    const connection = createConnection();
+    connection.on('message', (msg) => onMessage(msg));
+    connection.connect();
+    return () => connection.disconnect();
+  }, [createConnection, onMessage]);
+
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+```
+
+#### 答案
+
+解决这个问题的正确方法不止一种，下面要介绍的是一种可能的解决方案。
+
+在原始示例中，切换主题会导致创建和传递不同的 `onMessage` 和 `createConnection` 函数。由于 Effect 依赖于这些功能，因此每次切换主题时聊天都会重新连接。
+
+要解决 `onMessage` 的问题，你需要将其包装到 Effect Event 中：
+
+```jsx
+export default function ChatRoom({ roomId, createConnection, onMessage }) {
+  const onReceiveMessage = useEffectEvent(onMessage);
+
+  useEffect(() => {
+      const connection = createConnection();
+      connection.on('message', (msg) => onReceiveMessage(msg));
+      // ...
+  });
+}
+```
+
+与 `onMessage` props 不同，`onReceiveMessage` Effect Event 不是响应式的。这就是为什么它不需要成为 Effect 的依赖。因此，对 `onMessage` 的更改不会导致聊天重新连接。
+
+你不能对 `createConnection` 做同样的事情，因为它 应该 是响应式的。如果用户在加密和未加密连接之间切换，或者如果用户切换当前房间，你 希望 重新触发 Effect。但是，因为 `createConnection` 是函数，你无法检查它读取的信息是否 实际 发生了变化。要解决此问题，请传递原始的 `roomId` 和 `isEncrypted` 值，而不是从 App 组件向下传递 `createConnection` ：
+
+```jsx
+ <ChatRoom
+    roomId={roomId}
+    isEncrypted={isEncrypted}
+    onMessage={msg => {
+      showNotification('新消息：' + msg, isDark ? 'dark' : 'light');
+    }}
+  />
+```
+
+现在你可以将 `createConnection` 函数移到 Effect 里面，而不是从 App 向下传递它：
+
+```jsx
+import {
+  createEncryptedConnection,
+  createUnencryptedConnection,
+} from './chat.js';
+
+export default function ChatRoom({ roomId, isEncrypted, onMessage }) {
+    const onReceiveMessage = useEffectEvent(onMessage);
+
+    useEffect(() => {
+        function createConnection() {
+            const options = {
+                serverUrl: 'https://localhost:1234',
+                roomId: roomId
+            };
+            if (isEncrypted) {
+                return createEncryptedConnection(options);
+            } else {
+                return createUnencryptedConnection(options);
+            }
+        }
+
+        // ...
+    });
+}
+```
+
+在这两个更改之后，Effect 不再依赖于任何函数值：
+
+```jsx
+export default function ChatRoom({ roomId, isEncrypted, onMessage }) { // Reactive values
+  const onReceiveMessage = useEffectEvent(onMessage); // Not reactive
+
+  useEffect(() => {
+    function createConnection() {
+      const options = {
+        serverUrl: 'https://localhost:1234',
+        roomId: roomId // 读取响应式值
+      };
+      if (isEncrypted) { // 读取响应式值
+        return createEncryptedConnection(options);
+      } else {
+        return createUnencryptedConnection(options);
+      }
+    }
+
+    const connection = createConnection();
+    connection.on('message', (msg) => onReceiveMessage(msg));
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, isEncrypted]); // ✅ 所有依赖已声明
+}
+```
+
+因此，仅当有意义的内容（`roomId` 或 `isEncrypted`）发生变化时，聊天才会重新连接：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+import { showNotification } from './notifications.js';
+
+export default function App() {
+  const [isDark, setIsDark] = useState(false);
+  const [roomId, setRoomId] = useState('所有');
+  const [isEncrypted, setIsEncrypted] = useState(false);
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        使用暗黑主题
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isEncrypted}
+          onChange={e => setIsEncrypted(e.target.checked)}
+        />
+        开启加密功能
+      </label>
+      <label>
+        选择聊天室：
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="所有">所有</option>
+          <option value="旅游">旅游</option>
+          <option value="音乐">音乐</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        isEncrypted={isEncrypted}
+        onMessage={msg => {
+          showNotification('新消息：' + msg, isDark ? 'dark' : 'light');
+        }}
+      />
+    </>
+  );
+}
+```
+
+#### ChatRoom.js
+```jsx
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import {
+  createEncryptedConnection,
+  createUnencryptedConnection,
+} from './chat.js';
+
+export default function ChatRoom({ roomId, isEncrypted, onMessage }) {
+  const onReceiveMessage = useEffectEvent(onMessage);
+
+  useEffect(() => {
+    function createConnection() {
+      const options = {
+        serverUrl: 'https://localhost:1234',
+        roomId: roomId
+      };
+      if (isEncrypted) {
+        return createEncryptedConnection(options);
+      } else {
+        return createUnencryptedConnection(options);
+      }
+    }
+
+    const connection = createConnection();
+    connection.on('message', (msg) => onReceiveMessage(msg));
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, isEncrypted]);
+
+  return <h1>欢迎来到 {roomId} 房间！</h1>;
+}
+```
