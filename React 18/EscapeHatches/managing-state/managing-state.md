@@ -173,7 +173,7 @@ export default function Form() {
 
 这看起来似乎只是一个小改动，但却可以避免很多潜在的问题。
 
-### 在组件间共享状态 
+## 在组件间共享状态 
 有时候你希望两个组件的状态始终同步更改。要实现这一点，可以将相关状态从这两个组件上移除，并把这些状态移到最近的父级组件，然后通过 props 将状态传递给这两个组件。这被称为“状态提升”，这是编写 React 代码时常做的事。
 
 在以下示例中，要求每次只能激活一个面板。要实现这一点，父组件将管理激活状态并为其子组件指定 prop，而不是将激活状态保留在各自的子组件中。
@@ -223,4 +223,110 @@ function Panel({
     </section>
   );
 }
+```
+
+## 保留和重置状态
+当你重新渲染一个组件时， React 需要决定组件树中的哪些部分要保留和更新，以及丢弃或重新创建。在大多数情况下， React 的自动处理机制已经做得足够好了。默认情况下，React 会保留树中与先前渲染的组件树“匹配”的部分。
+
+然而，有时这并不是你想要的。例如，在下面这个程序中，输入内容后再切换收件人并不会清空输入框。这可能会导致用户不小心发错消息：
+
+### App.js
+```jsx
+import { useState } from 'react';
+import Chat from './Chat.js';
+import ContactList from './ContactList.js';
+
+export default function Messenger() {
+  const [to, setTo] = useState(contacts[0]);
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedContact={to}
+        onSelect={contact => setTo(contact)}
+      />
+      <Chat contact={to} />
+    </div>
+  )
+}
+
+const contacts = [
+  { name: 'Taylor', email: 'taylor@mail.com' },
+  { name: 'Alice', email: 'alice@mail.com' },
+  { name: 'Bob', email: 'bob@mail.com' }
+];
+```
+
+### ContactList.js
+```jsx
+export default function ContactList({
+  selectedContact,
+  contacts,
+  onSelect
+}) {
+  return (
+    <section className="contact-list">
+      <ul>
+        {contacts.map(contact =>
+          <li key={contact.email}>
+            <button onClick={() => {
+              onSelect(contact);
+            }}>
+              {contact.name}
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+```
+
+### Chat.js
+```jsx
+import { useState } from 'react';
+
+export default function Chat({ contact }) {
+  const [text, setText] = useState('');
+  return (
+    <section className="chat">
+      <textarea
+        value={text}
+        placeholder={'Chat to ' + contact.name}
+        onChange={e => setText(e.target.value)}
+      />
+      <br />
+      <button>发送给 {contact.email}</button>
+    </section>
+  );
+}
+```
+
+React 允许你覆盖默认行为，可通过向组件传递一个唯一 `key`（如 `<Chat key={email}/>` 来 强制 重置其状态。这会告诉 React ，如果收件人不同，应将其作为一个 不同的 `Chat` 组件，需要使用新数据和 UI（比如输入框）来重新创建它。现在，在接收者之间切换时就会重置输入框——即使渲染的是同一个组件。
+
+### App.js
+```jsx
+import { useState } from 'react';
+import Chat from './Chat.js';
+import ContactList from './ContactList.js';
+
+export default function Messenger() {
+  const [to, setTo] = useState(contacts[0]);
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedContact={to}
+        onSelect={contact => setTo(contact)}
+      />
+      <Chat key={to.email} contact={to} />
+    </div>
+  )
+}
+
+const contacts = [
+  { name: 'Taylor', email: 'taylor@mail.com' },
+  { name: 'Alice', email: 'alice@mail.com' },
+  { name: 'Bob', email: 'bob@mail.com' }
+];
 ```
