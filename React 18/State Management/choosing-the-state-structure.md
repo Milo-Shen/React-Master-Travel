@@ -292,3 +292,32 @@ const fullName = firstName + ' ' + lastName;
 ```
 
 因此，更改处理程序不需要做任何特殊操作来更新它。当你调用 `setFirstName` 或 `setLastName` 时，你会触发一次重新渲染，然后下一个 `fullName` 将从新数据中计算出来。
+
+### 不要在 state 中镜像 props 
+```jsx
+function Message({ messageColor }) {
+    const [color, setColor] = useState(messageColor);
+}
+```
+
+这里，一个 `color` state 变量被初始化为 `messageColor` 的 prop 值。这段代码的问题在于，*如果父组件稍后传递不同的 `messageColor` 值（例如，将其从 `'blue'` 更改为 `'red'`），则 `color` state 变量将不会更新！* state 仅在第一次渲染期间初始化。
+
+这就是为什么在 state 变量中，“镜像”一些 prop 属性会导致混淆的原因。相反，你要在代码中直接使用 `messageColor` 属性。如果你想给它起一个更短的名称，请使用常量：
+
+```jsx
+function Message({ messageColor }) {
+    const color = messageColor;
+}
+```
+
+这种写法就不会与从父组件传递的属性失去同步。
+
+只有当你 *想要* 忽略特定 props 属性的所有更新时，将 props “镜像”到 state 才有意义。按照惯例，prop 名称以 initial 或 default 开头，以阐明该 prop 的新值将被忽略：
+
+```jsx
+function Message({ initialColor }) {
+    // 这个 `color` state 变量用于保存 `initialColor` 的 **初始值**。
+    // 对于 `initialColor` 属性的进一步更改将被忽略。
+    const [color, setColor] = useState(initialColor);
+}
+```
