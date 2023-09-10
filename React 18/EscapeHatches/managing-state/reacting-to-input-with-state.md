@@ -276,3 +276,26 @@ export default function Form({ status }) {
 
 为了可视化这个流程，请尝试在纸上画出圆形标签以表示每个状态，两个状态之间的改变用箭头表示。你可以像这样画出很多流程并且在写代码前解决许多 bug。
 
+### 步骤 3：通过 useState 表示内存中的 state
+接下来你会需要在内存中通过 useState 表示组件中的视图状态。诀窍很简单：state 的每个部分都是“处于变化中的”，并且你需要 *让“变化的部分”尽可能的少*。更复杂的程序会产生更多 bug！
+
+先从 *绝对必须* 存在的状态开始。例如，你需要存储输入的 answer 以及用于存储最后一个错误的 error （如果存在的话）：
+
+```jsx
+const [answer, setAnswer] = useState('');
+const [error, setError] = useState(null);
+```
+
+接下来，你需要一个状态变量来代表你想要显示的那个可视状态。通常有多种方式在内存中表示它，因此你需要进行实验。
+
+如果你很难立即想出最好的办法，那就先从添加足够多的 state 开始，*确保* 所有可能的视图状态都囊括其中：
+
+```jsx
+const [isEmpty, setIsEmpty] = useState(true);
+const [isTyping, setIsTyping] = useState(false);
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [isSuccess, setIsSuccess] = useState(false);
+const [isError, setIsError] = useState(false);
+```
+
+你最初的想法或许不是最好的，但是没关系，重构 state 也是步骤中的一部分！
