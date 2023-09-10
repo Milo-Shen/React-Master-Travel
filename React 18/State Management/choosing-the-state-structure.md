@@ -1395,3 +1395,104 @@ export default function TravelPlan() {
 ```
 
 请注意，事件处理程序在这次更改后只关心调用 setItems。现在，项目计数是从 items 中在下一次渲染期间计算的，因此它们始终是最新的。
+
+### 第 3 个挑战 共 4 个挑战: 修复消失的选项 
+有一个 `letters` 列表在 state 中。当你悬停或聚焦到特定的字母时，它会被突出显示。当前突出显示的字母存储在 `highlightedLetter` state 变量中。您可以 “Star” 和 “Unstar” 单个字母，这将更新 state 中的 `letters` 数组。
+
+虽然这段代码可以运行，但是有一个小的 UI 问题。当你点击 “Star” 或 “Unstar” 时，高亮会短暂消失。不过只要你移动鼠标指针或者用键盘切换到另一个字母，它就会重新出现。为什么会这样？请修复它，使得在按钮点击后高亮不会消失。
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import { initialLetters } from './data.js';
+import Letter from './Letter.js';
+
+export default function MailClient() {
+  const [letters, setLetters] = useState(initialLetters);
+  const [highlightedLetter, setHighlightedLetter] = useState(null);
+
+  function handleHover(letter) {
+    setHighlightedLetter(letter);
+  }
+
+  function handleStar(starred) {
+    setLetters(letters.map(letter => {
+      if (letter.id === starred.id) {
+        return {
+          ...letter,
+          isStarred: !letter.isStarred
+        };
+      } else {
+        return letter;
+      }
+    }));
+  }
+
+  return (
+    <>
+      <h2>Inbox</h2>
+      <ul>
+        {letters.map(letter => (
+          <Letter
+            key={letter.id}
+            letter={letter}
+            isHighlighted={
+              letter === highlightedLetter
+            }
+            onHover={handleHover}
+            onToggleStar={handleStar}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+#### Letter.js
+```jsx
+export default function Letter({
+  letter,
+  isHighlighted,
+  onHover,
+  onToggleStar,
+}) {
+  return (
+    <li
+      className={
+        isHighlighted ? 'highlighted' : ''
+      }
+      onFocus={() => {
+        onHover(letter);        
+      }}
+      onPointerMove={() => {
+        onHover(letter);
+      }}
+    >
+      <button onClick={() => {
+        onToggleStar(letter);
+      }}>
+        {letter.isStarred ? 'Unstar' : 'Star'}
+      </button>
+      {letter.subject}
+    </li>
+  )
+}
+```
+
+### data.js
+```jsx
+export const initialLetters = [{
+  id: 0,
+  subject: 'Ready for adventure?',
+  isStarred: true,
+}, {
+  id: 1,
+  subject: 'Time to check in!',
+  isStarred: false,
+}, {
+  id: 2,
+  subject: 'Festival Begins in Just SEVEN Days!',
+  isStarred: false,
+}];
+```
