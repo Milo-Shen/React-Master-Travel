@@ -116,7 +116,7 @@ React 正是为了解决这样的问题而诞生的。
 
 在 React 中，你不必直接去操作 UI —— 你不必直接启用、关闭、显示或隐藏组件。相反，你只需要 声明你想要显示的内容， React 就会通过计算得出该如何去更新 UI。想象一下，当你上了一辆出租车并且告诉司机你想去哪，而不是事无巨细地告诉他该如何走。将你带到目的地是司机的工作，他们甚至可能知道一些你没有想过并且不知道的捷径！
 
-### 声明式地考虑 UI 
+## 声明式地考虑 UI 
 你已经从上面的例子看到如何去实现一个表单了，为了更好地理解如何在 React 中思考，接下来你将会学到如何用 React 重新实现这个 UI：
 
 1. 定位你的组件中不同的视图状态
@@ -124,3 +124,80 @@ React 正是为了解决这样的问题而诞生的。
 3. 表示内存中的 state（需要使用 useState）
 4. 删除任何不必要的 state 变量
 5. 连接事件处理函数去设置 state
+
+### 步骤 1：定位组件中不同的视图状态 
+在计算机科学中，你或许听过可处于多种“状态”之一的 “状态机”。如果你有与设计师一起工作，那么你可能已经见过不同“视图状态”的模拟图。正因为 React 站在设计与计算机科学的交点上，因此这两种思想都是灵感的来源。
+
+首先，你需要去可视化 UI 界面中用户可能看到的所有不同的“状态”：
+
++ *无数据*：表单有一个不可用状态的“提交”按钮。
++ *输入中*：表单有一个可用状态的“提交”按钮。
++ *提交中*：表单完全处于不可用状态，加载动画出现。
++ *成功时*：显示“成功”的消息而非表单。
++ *错误时*：与输入状态类似，但会多错误的消息。
+
+像一个设计师一样，你会想要在你添加逻辑之前去“模拟”不同的状态或创建“模拟状态”。例如下面的例子，这是一个对表单可视部分的模拟。这个模拟被一个 `status` 的属性控制，并且这个属性的默认值为 `empty`。
+
+#### App.js
+```html
+export default function Form({
+  status = 'empty'
+}) {
+  if (status === 'success') {
+    return <h1>That's right!</h1>
+  }
+  return (
+    <>
+      <h2>City quiz</h2>
+      <p>
+        In which city is there a billboard that turns air into drinkable water?
+      </p>
+      <form>
+        <textarea />
+        <br />
+        <button>
+          Submit
+        </button>
+      </form>
+    </>
+  )
+}
+```
+
+你可以随意命名这个属性，名字并不重要。试着将 `status = 'empty'` 改为 `status = 'success'`，然后你就会看到成功的信息出现。模拟可以让你在书写逻辑前快速迭代 UI。这是同一组件的一个更加充实的原型，仍然由 `status` 属性“控制”：
+
+```html
+export default function Form({
+  // Try 'submitting', 'error', 'success':
+  status = 'empty'
+}) {
+  if (status === 'success') {
+    return <h1>That's right!</h1>
+  }
+  return (
+    <>
+      <h2>City quiz</h2>
+      <p>
+        In which city is there a billboard that turns air into drinkable water?
+      </p>
+      <form>
+        <textarea disabled={
+          status === 'submitting'
+        } />
+        <br />
+        <button disabled={
+          status === 'empty' ||
+          status === 'submitting'
+        }>
+          Submit
+        </button>
+        {status === 'error' &&
+          <p className="Error">
+            Good guess but a wrong answer. Try again!
+          </p>
+        }
+      </form>
+      </>
+  );
+}
+```
