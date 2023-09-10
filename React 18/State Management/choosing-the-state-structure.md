@@ -1207,3 +1207,36 @@ function PlaceTree({ id, parentId, placesById, onComplete }) {
 + 除非您特别想防止更新，否则不要将 props 放入 state 中。
 + 对于选择类型的 UI 模式，请在 state 中保存 ID 或索引而不是对象本身。
 + 如果深度嵌套 state 更新很复杂，请尝试将其展开扁平化。
+
+## 尝试一些挑战
+### 第 1 个挑战 共 4 个挑战: 修复一个未更新的组件 
+这个 `Clock` 组件接收两个属性：`color` 和 `time`。当您在选择框中选择不同的颜色时，`Clock` 组件将从其父组件接收到一个不同的 `color` 属性。然而，由于某种原因，显示的颜色没有更新。为什么？请修复这个问题。
+
+```jsx
+import { useState } from 'react';
+
+export default function Clock(props) {
+  const [color, setColor] = useState(props.color);
+  return (
+    <h1 style={{ color: props.color }}>
+      {props.time}
+    </h1>
+  );
+}
+```
+
+修复后: 
+
+```jsx
+import { useState } from 'react';
+
+export default function Clock(props) {
+  return (
+    <h1 style={{ color: props.color }}>
+      {props.time}
+    </h1>
+  );
+}
+```
+
+这个问题点在于此组件的 `color` state 是使用 `color` prop 的初始值进行初始化的。但是当 `color` prop 值发生更改时，这不会影响 state 变量！因此它们会失去同步。为了解决这个问题，完全删除 state 变量，并直接使用 `color` prop 即可。
