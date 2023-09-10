@@ -18,3 +18,60 @@
 这些原则背后的目标是 *使 state 易于更新而不引入错误*。从 state 中删除冗余和重复数据有助于确保所有部分保持同步。这类似于数据库工程师想要 “规范化”数据库结构，以减少出现错误的机会。用爱因斯坦的话说，*“让你的状态尽可能简单，但不要过于简单。”*
 
 现在让我们来看看这些原则在实际中是如何应用的。
+
+## 合并关联的 state
+有时候你可能会不确定是使用单个 state 变量还是多个 state 变量。
+
+你会像下面这样做吗？
+
+```jsx
+const [x, setX] = useState(0);
+const [y, setY] = useState(0);
+```
+
+或这样？
+
+```jsx
+const [position, setPosition] = useState({ x: 0, y: 0 });
+```
+
+从技术上讲，你可以使用其中任何一种方法。但是，*如果某两个 state 变量总是一起变化，则将它们统一成一个 state 变量可能更好*。这样你就不会忘记让它们始终保持同步，就像下面这个例子中，移动光标会同时更新红点的两个坐标：
+
+```jsx
+import { useState } from 'react';
+
+export default function MovingDot() {
+  const [position, setPosition] = useState({
+    x: 0,
+    y: 0
+  });
+  return (
+    <div
+      onPointerMove={e => {
+        setPosition({
+          x: e.clientX,
+          y: e.clientY
+        });
+      }}
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+      }}>
+      <div style={{
+        position: 'absolute',
+        backgroundColor: 'red',
+        borderRadius: '50%',
+        transform: `translate(${position.x}px, ${position.y}px)`,
+        left: -10,
+        top: -10,
+        width: 20,
+        height: 20,
+      }} />
+    </div>
+  )
+}
+```
+
+另一种情况是，你将数据整合到一个对象或一个数组中时，你不知道需要多少个 state 片段。例如，当你有一个用户可以添加自定义字段的表单时，这将会很有帮助。
+
