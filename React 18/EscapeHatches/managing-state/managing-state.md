@@ -502,3 +502,201 @@ import { createContext } from 'react';
 
 export const LevelContext = createContext(0);
 ```
+
+## 使用 Reducer 和 Context 进行状态扩展
+Reducer 帮助你合并组件的状态更新逻辑。Context 帮助你将信息深入传递给其他组件。你可以将 reducers 和 context 组合在一起使用，以管理复杂应用的状态。
+
+基于这种想法，使用 reducer 来管理一个具有复杂状态的父组件。组件树中任何深度的其他组件都可以通过 `context` 读取其状态。还可以 `dispatch` 一些 `action` 来更新状态。
+
+### App.js
+```jsx
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksProvider } from './TasksContext.js';
+
+export default function TaskApp() {
+  return (
+    <TasksProvider>
+      <h1>在京都休息一天</h1>
+      <AddTask />
+      <TaskList />
+    </TasksProvider>
+  );
+}
+```
+
+### TasksContext.js
+```jsx
+import { createContext, useContext, useReducer } from 'react';
+
+const TasksContext = createContext(null);
+const TasksDispatchContext = createContext(null);
+
+export function TasksProvider({ children }) {
+  const [tasks, dispatch] = useReducer(
+    tasksReducer,
+    initialTasks
+  );
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider
+        value={dispatch}
+      >
+        {children}
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+export function useTasks() {
+  return useContext(TasksContext);
+}
+
+export function useTasksDispatch() {
+  return useContext(TasksDispatchContext);
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [...tasks, {
+        id: action.id,
+        text: action.text,
+        done: false
+      }];
+    }
+    case 'changed': {
+      return tasks.map(t => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知操作：' + action.type);
+    }
+  }
+}
+
+const initialTasks = [
+  { id: 0, text: '哲学家之路', done: true },
+  { id: 1, text: '参观寺庙', done: false },
+  { id: 2, text: '喝抹茶', done: false }
+];
+```
+
+### AddTask.js
+```jsx
+import { useState, useContext } from 'react';
+import { useTasksDispatch } from './TasksContext.js';
+
+export default function AddTask({ onAddTask }) {
+  const [text, setText] = useState('');
+  const dispatch = useTasksDispatch();
+  return (
+    <>
+      <input
+        placeholder="添加任务"
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button onClick={() => {
+        setText('');
+        dispatch({
+          type: 'added',
+          id: nextId++,
+          text: text,
+        });
+      }}>添加</button>
+    </>
+  );
+}
+
+let nextId = 3;
+```
+
+### TaskList.js
+```jsx
+import { useState, useContext } from 'react';
+import { useTasks, useTasksDispatch } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useTasks();
+  return (
+    <ul>
+      {tasks.map(task => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useTasksDispatch();
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={e => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value
+              }
+            });
+          }} />
+        <button onClick={() => setIsEditing(false)}>
+          保存
+        </button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>
+          编辑
+        </button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={task.done}
+        onChange={e => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked
+            }
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => {
+        dispatch({
+          type: 'deleted',
+          id: task.id
+        });
+      }}>
+        删除
+      </button>
+    </label>
+  );
+}
+```
