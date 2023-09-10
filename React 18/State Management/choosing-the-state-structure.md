@@ -492,3 +492,631 @@ state 过去常常是这样复制的：
 
 现在，如果你编辑 *`selected`* 元素，下面的消息将立即更新。这是因为 `setItems` 会触发重新渲染，而 `items.find(...)` 会找到带有更新文本的元素。你不需要在 state 中保存 *选定的元素*，因为只有 选定的 *ID* 是必要的。其余的可以在渲染期间计算。
 
+## 避免深度嵌套的 state 
+想象一下，一个由行星、大陆和国家组成的旅行计划。你可能会尝试使用嵌套对象和数组来构建它的 state，就像下面这个例子：
+
+### App.js
+```jsx
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+function PlaceTree({ place }) {
+  const childPlaces = place.childPlaces;
+  return (
+    <li>
+      {place.title}
+      {childPlaces.length > 0 && (
+        <ol>
+          {childPlaces.map(place => (
+            <PlaceTree key={place.id} place={place} />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+  const planets = plan.childPlaces;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planets.map(place => (
+          <PlaceTree key={place.id} place={place} />
+        ))}
+      </ol>
+    </>
+  );
+}
+```
+
+### places.js
+```jsx
+export const initialTravelPlan = {
+  id: 0,
+  title: '(Root)',
+  childPlaces: [{
+    id: 1,
+    title: 'Earth',
+    childPlaces: [{
+      id: 2,
+      title: 'Africa',
+      childPlaces: [{
+        id: 3,
+        title: 'Botswana',
+        childPlaces: []
+      }, {
+        id: 4,
+        title: 'Egypt',
+        childPlaces: []
+      }, {
+        id: 5,
+        title: 'Kenya',
+        childPlaces: []
+      }, {
+        id: 6,
+        title: 'Madagascar',
+        childPlaces: []
+      }, {
+        id: 7,
+        title: 'Morocco',
+        childPlaces: []
+      }, {
+        id: 8,
+        title: 'Nigeria',
+        childPlaces: []
+      }, {
+        id: 9,
+        title: 'South Africa',
+        childPlaces: []
+      }]
+    }, {
+      id: 10,
+      title: 'Americas',
+      childPlaces: [{
+        id: 11,
+        title: 'Argentina',
+        childPlaces: []
+      }, {
+        id: 12,
+        title: 'Brazil',
+        childPlaces: []
+      }, {
+        id: 13,
+        title: 'Barbados',
+        childPlaces: []
+      }, {
+        id: 14,
+        title: 'Canada',
+        childPlaces: []
+      }, {
+        id: 15,
+        title: 'Jamaica',
+        childPlaces: []
+      }, {
+        id: 16,
+        title: 'Mexico',
+        childPlaces: []
+      }, {
+        id: 17,
+        title: 'Trinidad and Tobago',
+        childPlaces: []
+      }, {
+        id: 18,
+        title: 'Venezuela',
+        childPlaces: []
+      }]
+    }, {
+      id: 19,
+      title: 'Asia',
+      childPlaces: [{
+        id: 20,
+        title: 'China',
+        childPlaces: []
+      }, {
+        id: 21,
+        title: 'India',
+        childPlaces: []
+      }, {
+        id: 22,
+        title: 'Singapore',
+        childPlaces: []
+      }, {
+        id: 23,
+        title: 'South Korea',
+        childPlaces: []
+      }, {
+        id: 24,
+        title: 'Thailand',
+        childPlaces: []
+      }, {
+        id: 25,
+        title: 'Vietnam',
+        childPlaces: []
+      }]
+    }, {
+      id: 26,
+      title: 'Europe',
+      childPlaces: [{
+        id: 27,
+        title: 'Croatia',
+        childPlaces: [],
+      }, {
+        id: 28,
+        title: 'France',
+        childPlaces: [],
+      }, {
+        id: 29,
+        title: 'Germany',
+        childPlaces: [],
+      }, {
+        id: 30,
+        title: 'Italy',
+        childPlaces: [],
+      }, {
+        id: 31,
+        title: 'Portugal',
+        childPlaces: [],
+      }, {
+        id: 32,
+        title: 'Spain',
+        childPlaces: [],
+      }, {
+        id: 33,
+        title: 'Turkey',
+        childPlaces: [],
+      }]
+    }, {
+      id: 34,
+      title: 'Oceania',
+      childPlaces: [{
+        id: 35,
+        title: 'Australia',
+        childPlaces: [],
+      }, {
+        id: 36,
+        title: 'Bora Bora (French Polynesia)',
+        childPlaces: [],
+      }, {
+        id: 37,
+        title: 'Easter Island (Chile)',
+        childPlaces: [],
+      }, {
+        id: 38,
+        title: 'Fiji',
+        childPlaces: [],
+      }, {
+        id: 39,
+        title: 'Hawaii (the USA)',
+        childPlaces: [],
+      }, {
+        id: 40,
+        title: 'New Zealand',
+        childPlaces: [],
+      }, {
+        id: 41,
+        title: 'Vanuatu',
+        childPlaces: [],
+      }]
+    }]
+  }, {
+    id: 42,
+    title: 'Moon',
+    childPlaces: [{
+      id: 43,
+      title: 'Rheita',
+      childPlaces: []
+    }, {
+      id: 44,
+      title: 'Piccolomini',
+      childPlaces: []
+    }, {
+      id: 45,
+      title: 'Tycho',
+      childPlaces: []
+    }]
+  }, {
+    id: 46,
+    title: 'Mars',
+    childPlaces: [{
+      id: 47,
+      title: 'Corn Town',
+      childPlaces: []
+    }, {
+      id: 48,
+      title: 'Green Hill',
+      childPlaces: []      
+    }]
+  }]
+};
+```
+
+现在，假设你想添加一个按钮来删除一个你已经去过的地方。你会怎么做呢？更新嵌套的 state 需要从更改部分一直向上复制对象。删除一个深度嵌套的地点将涉及复制其整个父级地点链。这样的代码可能非常冗长。
+
+*如果 state 嵌套太深，难以轻松更新，可以考虑将其“扁平化”。* 这里有一个方法可以重构上面这个数据。不同于树状结构，每个节点的 place 都是一个包含 其子节点 的数组，你可以让每个节点的 `place` 作为数组保存 其子节点的 ID。然后存储一个节点 ID 与相应节点的映射关系。
+
+这个数据重组可能会让你想起看到一个数据库表：
+
+### App.js
+```jsx
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+function PlaceTree({ id, placesById }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      {childIds.length > 0 && (
+        <ol>
+          {childIds.map(childId => (
+            <PlaceTree
+              key={childId}
+              id={childId}
+              placesById={placesById}
+            />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map(id => (
+          <PlaceTree
+            key={id}
+            id={id}
+            placesById={plan}
+          />
+        ))}
+      </ol>
+    </>
+  );
+}
+```
+
+### places.js
+```jsx
+export const initialTravelPlan = {
+  0: {
+    id: 0,
+    title: '(Root)',
+    childIds: [1, 42, 46],
+  },
+  1: {
+    id: 1,
+    title: 'Earth',
+    childIds: [2, 10, 19, 26, 34]
+  },
+  2: {
+    id: 2,
+    title: 'Africa',
+    childIds: [3, 4, 5, 6 , 7, 8, 9]
+  }, 
+  3: {
+    id: 3,
+    title: 'Botswana',
+    childIds: []
+  },
+  4: {
+    id: 4,
+    title: 'Egypt',
+    childIds: []
+  },
+  5: {
+    id: 5,
+    title: 'Kenya',
+    childIds: []
+  },
+  6: {
+    id: 6,
+    title: 'Madagascar',
+    childIds: []
+  }, 
+  7: {
+    id: 7,
+    title: 'Morocco',
+    childIds: []
+  },
+  8: {
+    id: 8,
+    title: 'Nigeria',
+    childIds: []
+  },
+  9: {
+    id: 9,
+    title: 'South Africa',
+    childIds: []
+  },
+  10: {
+    id: 10,
+    title: 'Americas',
+    childIds: [11, 12, 13, 14, 15, 16, 17, 18],   
+  },
+  11: {
+    id: 11,
+    title: 'Argentina',
+    childIds: []
+  },
+  12: {
+    id: 12,
+    title: 'Brazil',
+    childIds: []
+  },
+  13: {
+    id: 13,
+    title: 'Barbados',
+    childIds: []
+  }, 
+  14: {
+    id: 14,
+    title: 'Canada',
+    childIds: []
+  },
+  15: {
+    id: 15,
+    title: 'Jamaica',
+    childIds: []
+  },
+  16: {
+    id: 16,
+    title: 'Mexico',
+    childIds: []
+  },
+  17: {
+    id: 17,
+    title: 'Trinidad and Tobago',
+    childIds: []
+  },
+  18: {
+    id: 18,
+    title: 'Venezuela',
+    childIds: []
+  },
+  19: {
+    id: 19,
+    title: 'Asia',
+    childIds: [20, 21, 22, 23, 24, 25],   
+  },
+  20: {
+    id: 20,
+    title: 'China',
+    childIds: []
+  },
+  21: {
+    id: 21,
+    title: 'India',
+    childIds: []
+  },
+  22: {
+    id: 22,
+    title: 'Singapore',
+    childIds: []
+  },
+  23: {
+    id: 23,
+    title: 'South Korea',
+    childIds: []
+  },
+  24: {
+    id: 24,
+    title: 'Thailand',
+    childIds: []
+  },
+  25: {
+    id: 25,
+    title: 'Vietnam',
+    childIds: []
+  },
+  26: {
+    id: 26,
+    title: 'Europe',
+    childIds: [27, 28, 29, 30, 31, 32, 33],   
+  },
+  27: {
+    id: 27,
+    title: 'Croatia',
+    childIds: []
+  },
+  28: {
+    id: 28,
+    title: 'France',
+    childIds: []
+  },
+  29: {
+    id: 29,
+    title: 'Germany',
+    childIds: []
+  },
+  30: {
+    id: 30,
+    title: 'Italy',
+    childIds: []
+  },
+  31: {
+    id: 31,
+    title: 'Portugal',
+    childIds: []
+  },
+  32: {
+    id: 32,
+    title: 'Spain',
+    childIds: []
+  },
+  33: {
+    id: 33,
+    title: 'Turkey',
+    childIds: []
+  },
+  34: {
+    id: 34,
+    title: 'Oceania',
+    childIds: [35, 36, 37, 38, 39, 40, 41],   
+  },
+  35: {
+    id: 35,
+    title: 'Australia',
+    childIds: []
+  },
+  36: {
+    id: 36,
+    title: 'Bora Bora (French Polynesia)',
+    childIds: []
+  },
+  37: {
+    id: 37,
+    title: 'Easter Island (Chile)',
+    childIds: []
+  },
+  38: {
+    id: 38,
+    title: 'Fiji',
+    childIds: []
+  },
+  39: {
+    id: 40,
+    title: 'Hawaii (the USA)',
+    childIds: []
+  },
+  40: {
+    id: 40,
+    title: 'New Zealand',
+    childIds: []
+  },
+  41: {
+    id: 41,
+    title: 'Vanuatu',
+    childIds: []
+  },
+  42: {
+    id: 42,
+    title: 'Moon',
+    childIds: [43, 44, 45]
+  },
+  43: {
+    id: 43,
+    title: 'Rheita',
+    childIds: []
+  },
+  44: {
+    id: 44,
+    title: 'Piccolomini',
+    childIds: []
+  },
+  45: {
+    id: 45,
+    title: 'Tycho',
+    childIds: []
+  },
+  46: {
+    id: 46,
+    title: 'Mars',
+    childIds: [47, 48]
+  },
+  47: {
+    id: 47,
+    title: 'Corn Town',
+    childIds: []
+  },
+  48: {
+    id: 48,
+    title: 'Green Hill',
+    childIds: []
+  }
+};
+```
+
+*现在 state 已经“扁平化”（也称为“规范化”），更新嵌套项会变得更加容易。*
+
+现在要删除一个地点，您只需要更新两个 state 级别：
++ 其 *父级* 地点的更新版本应该从其 `childIds` 数组中排除已删除的 ID。
++ 其根级“表”对象的更新版本应包括父级地点的更新版本。
+
+下面是展示如何处理它的一个示例：
+
+```jsx
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+
+  function handleComplete(parentId, childId) {
+    const parent = plan[parentId];
+    // 创建一个其父级地点的新版本
+    // 但不包括子级 ID。
+    const nextParent = {
+      ...parent,
+      childIds: parent.childIds
+        .filter(id => id !== childId)
+    };
+    // 更新根 state 对象...
+    setPlan({
+      ...plan,
+      // ...以便它拥有更新的父级。
+      [parentId]: nextParent
+    });
+  }
+
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map(id => (
+          <PlaceTree
+            key={id}
+            id={id}
+            parentId={0}
+            placesById={plan}
+            onComplete={handleComplete}
+          />
+        ))}
+      </ol>
+    </>
+  );
+}
+
+function PlaceTree({ id, parentId, placesById, onComplete }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      <button onClick={() => {
+        onComplete(parentId, id);
+      }}>
+        Complete
+      </button>
+      {childIds.length > 0 &&
+        <ol>
+          {childIds.map(childId => (
+            <PlaceTree
+              key={childId}
+              id={childId}
+              parentId={id}
+              placesById={placesById}
+              onComplete={onComplete}
+            />
+          ))}
+        </ol>
+      }
+    </li>
+  );
+}
+```
+
+你确实可以随心所欲地嵌套 state，但是将其“扁平化”可以解决许多问题。这使得 state 更容易更新，并且有助于确保在嵌套对象的不同部分中没有重复。
+
