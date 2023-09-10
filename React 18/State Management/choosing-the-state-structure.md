@@ -1240,3 +1240,17 @@ export default function Clock(props) {
 ```
 
 这个问题点在于此组件的 `color` state 是使用 `color` prop 的初始值进行初始化的。但是当 `color` prop 值发生更改时，这不会影响 state 变量！因此它们会失去同步。为了解决这个问题，完全删除 state 变量，并直接使用 `color` prop 即可。
+
+或者，使用解构语法：
+
+```jsx
+import { useState } from 'react';
+
+export default function Clock({ color, time }) {
+  return (
+    <h1 style={{ color: color }}>
+      {time}
+    </h1>
+  );
+}
+```
