@@ -1120,3 +1120,81 @@ function PlaceTree({ id, parentId, placesById, onComplete }) {
 
 你确实可以随心所欲地嵌套 state，但是将其“扁平化”可以解决许多问题。这使得 state 更容易更新，并且有助于确保在嵌套对象的不同部分中没有重复。
 
+## 改善内存使用 
+理想情况下，您还应该从“表”对象中删除已删除的项目（以及它们的子项！）以改善内存使用。还可以 使用 `Immer` 使更新逻辑更加简洁。
+
+### App.js
+```jsx
+import { useImmer } from 'use-immer';
+import { initialTravelPlan } from './places.js';
+
+export default function TravelPlan() {
+  const [plan, updatePlan] = useImmer(initialTravelPlan);
+
+  function handleComplete(parentId, childId) {
+    updatePlan(draft => {
+      // 从父级地点的子 ID 中移除。
+      const parent = draft[parentId];
+      parent.childIds = parent.childIds
+        .filter(id => id !== childId);
+
+      // 删除这个地点和它的所有子目录。
+      deleteAllChildren(childId);
+      function deleteAllChildren(id) {
+        const place = draft[id];
+        place.childIds.forEach(deleteAllChildren);
+        delete draft[id];
+      }
+    });
+  }
+
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map(id => (
+          <PlaceTree
+            key={id}
+            id={id}
+            parentId={0}
+            placesById={plan}
+            onComplete={handleComplete}
+          />
+        ))}
+      </ol>
+    </>
+  );
+}
+
+function PlaceTree({ id, parentId, placesById, onComplete }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      <button onClick={() => {
+        onComplete(parentId, id);
+      }}>
+        Complete
+      </button>
+      {childIds.length > 0 &&
+        <ol>
+          {childIds.map(childId => (
+            <PlaceTree
+              key={childId}
+              id={childId}
+              parentId={id}
+              placesById={placesById}
+              onComplete={onComplete}
+            />
+          ))}
+        </ol>
+      }
+    </li>
+  );
+}
+```
+
+有时候，你也可以通过将一些嵌套 state 移动到子组件中来减少 state 的嵌套。这对于不需要保存的短暂 UI 状态非常有效，比如一个选项是否被悬停。
