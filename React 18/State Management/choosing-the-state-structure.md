@@ -293,7 +293,7 @@ const fullName = firstName + ' ' + lastName;
 
 因此，更改处理程序不需要做任何特殊操作来更新它。当你调用 `setFirstName` 或 `setLastName` 时，你会触发一次重新渲染，然后下一个 `fullName` 将从新数据中计算出来。
 
-### 不要在 state 中镜像 props 
+## 不要在 state 中镜像 props 
 ```jsx
 function Message({ messageColor }) {
     const [color, setColor] = useState(messageColor);
@@ -321,3 +321,174 @@ function Message({ initialColor }) {
     const [color, setColor] = useState(initialColor);
 }
 ```
+
+## 避免重复的 state 
+下面这个菜单列表组件可以让你在多种旅行小吃中选择一个：
+
+```jsx
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedItem, setSelectedItem] = useState(
+    items[0]
+  );
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2>
+      <ul>
+        {items.map(item => (
+          <li key={item.id}>
+            {item.title}
+            {' '}
+            <button onClick={() => {
+              setSelectedItem(item);
+            }}>Choose</button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+当前，它将所选元素作为对象存储在 `selectedItem` state 变量中。然而，这并不好：*`selectedItem` 的内容与 `items` 列表中的某个项是同一个对象。* 这意味着关于该项本身的信息在两个地方产生了重复。
+
+为什么这是个问题？让我们使每个项目都可以编辑：
+
+```jsx
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedItem, setSelectedItem] = useState(
+    items[0]
+  );
+
+  function handleItemChange(id, e) {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          title: e.target.value,
+        };
+      } else {
+        return item;
+      }
+    }));
+  }
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2> 
+      <ul>
+        {items.map((item, index) => (
+          <li key={item.id}>
+            <input
+              value={item.title}
+              onChange={e => {
+                handleItemChange(item.id, e)
+              }}
+            />
+            {' '}
+            <button onClick={() => {
+              setSelectedItem(item);
+            }}>Choose</button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+请注意，如果你首先单击菜单上的“Choose” 然后 编辑它，输入会更新，但底部的标签不会反映编辑内容。 这是因为你有重复的 state，并且你忘记更新了 `selectedItem`。
+
+尽管你也可以更新 `selectedItem`，但更简单的解决方法是消除重复项。在下面这个例子中，你将 `selectedId` 保存在 state 中，而不是在 `selectedItem` 对象中（它创建了一个与 `items` 内重复的对象），然后 通过搜索 `items` 数组中具有该 ID 的项，以此获取 `selectedItem`：
+
+```jsx
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedId, setSelectedId] = useState(0);
+
+  const selectedItem = items.find(item =>
+    item.id === selectedId
+  );
+
+  function handleItemChange(id, e) {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          title: e.target.value,
+        };
+      } else {
+        return item;
+      }
+    }));
+  }
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2>
+      <ul>
+        {items.map((item, index) => (
+          <li key={item.id}>
+            <input
+              value={item.title}
+              onChange={e => {
+                handleItemChange(item.id, e)
+              }}
+            />
+            {' '}
+            <button onClick={() => {
+              setSelectedId(item.id);
+            }}>Choose</button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+(或者，你可以将所选索引保持在 state 中。)
+
+state 过去常常是这样复制的：
+
++ `items = [{ id: 0, title: 'pretzels'}, ...]`
++ `selectedItem = {id: 0, title: 'pretzels'}`
+
+改了之后是这样的：
+
++ `items = [{ id: 0, title: 'pretzels'}, ...]`
++ `selectedId = 0`
+
+重复的 state 没有了，你只保留了必要的 state！
+
+现在，如果你编辑 *`selected`* 元素，下面的消息将立即更新。这是因为 `setItems` 会触发重新渲染，而 `items.find(...)` 会找到带有更新文本的元素。你不需要在 state 中保存 *选定的元素*，因为只有 选定的 *ID* 是必要的。其余的可以在渲染期间计算。
+
