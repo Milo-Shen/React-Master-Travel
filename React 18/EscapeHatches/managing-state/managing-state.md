@@ -331,7 +331,7 @@ const contacts = [
 ];
 ```
 
-### 提取状态逻辑到 reducer 中 
+## 提取状态逻辑到 reducer 中 
 对于那些需要更新多个状态的组件来说，过于分散的事件处理程序可能会令人不知所措。对于这种情况，你可以在组件外部将所有状态更新逻辑合并到一个称为 “`reducer`” 的函数中。这样，事件处理程序就会变得简洁，因为它们只需要指定用户的 “`actions`”。在文件的底部，`reducer` 函数指定状态应该如何更新以响应每个 `action`！
 
 ```jsx
@@ -417,4 +417,88 @@ const initialTasks = [
 ];
 ```
 
+## 使用 Context 进行深层数据传递 
+通常，你会通过 props 将信息从父组件传递给子组件。但是，如果要在组件树中深入传递一些 prop，或者树里的许多组件需要使用相同的 prop，那么传递 prop 可能会变得很麻烦。Context 允许父组件将一些信息提供给它下层的任何组件，不管该组件多深层也无需通过 props 逐层透传。
 
+这里的 `Heading` 组件通过“询问”最近的 `Section` 来确定其标题级别。每个 `Section` 的级别是通过给父 `Section` 添加的级别来确定的。每个 `Section` 都向它下层的所有组件提供信息，不需要逐层传递 `props`，而是通过 Context 来实现。
+
+### App.js
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading>大标题</Heading>
+      <Section>
+        <Heading>一级标题</Heading>
+        <Heading>一级标题</Heading>
+        <Heading>一级标题</Heading>
+        <Section>
+          <Heading>二级标题</Heading>
+          <Heading>二级标题</Heading>
+          <Heading>二级标题</Heading>
+          <Section>
+            <Heading>三级标题</Heading>
+            <Heading>三级标题</Heading>
+            <Heading>三级标题</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+### Section.js
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+### Heading.js
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 0:
+      throw Error('标题必须在 Section 内！');
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('未知级别：' + level);
+  }
+}
+```
+
+### LevelContext.js
+```jsx
+import { createContext } from 'react';
+
+export const LevelContext = createContext(0);
+```
