@@ -299,3 +299,23 @@ const [isError, setIsError] = useState(false);
 ```
 
 你最初的想法或许不是最好的，但是没关系，重构 state 也是步骤中的一部分！
+
+### 步骤 4：删除任何不必要的 state 变量 
+你会想要避免 `state` 内容中的重复，从而只需要关注那些必要的部分。花一点时间来重构你的 `state` 结构，会让你的组件更容易被理解，减少重复并且避免歧义。你的目的是 *防止出现在内存中的 `state` 不代表任何你希望用户看到的有效 UI 的情况* 。（比如你绝对不会想要在展示错误信息的同时禁用掉输入框，导致用户无法纠正错误！）
+
+这有一些你可以问自己的， 关于 state 变量的问题：
+
++ *这个 `state` 是否会导致矛盾？* 例如，`isTyping` 与 `isSubmitting` 的状态不能同时为 `true`。矛盾的产生通常说明了这个 `state` 没有足够的约束条件。两个布尔值有四种可能的组合，但是只有三种对应有效的状态。为了将“不可能”的状态移除，你可以将 `typing`、`submitting` 以及 `success` 这三个中的其中一个与 `status` 结合。
++ *相同的信息是否已经在另一个 `state` 变量中存在？* 另一个矛盾：`isEmpty` 和 `isTyping` 不能同时为 `true`。通过使它们成为独立的 `state` 变量，可能会导致它们不同步并导致 `bug`。幸运的是，你可以移除 `isEmpty` 转而用 `message.length === 0`。
++ *你是否可以通过另一个 state 变量的相反值得到相同的信息？* `isError` 是多余的，因为你可以检查 `error !== null`。
+
+在清理之后，你只剩下 3 个（从原本的 7 个！）必要的 state 变量：
+
+```jsx
+const [answer, setAnswer] = useState('');
+const [error, setError] = useState(null);
+const [status, setStatus] = useState('typing'); // 'typing', 'submitting', or 'success'
+```
+
+正是因为你不能在不破坏功能的情况下删除其中任何一个状态变量，因此你可以确定这些都是必要的。
+
