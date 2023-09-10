@@ -190,3 +190,105 @@ const isSent = status === 'sent';
 ```
 
 但它们不是 state 变量，所以你不必担心它们彼此失去同步。
+
+## 避免冗余的 state 
+如果你能在渲染期间从组件的 props 或其现有的 state 变量中计算出一些信息，则不应该把这些信息放到该组件的 state 中。
+
+例如，以这个表单为例。它可以运行，但你能找到其中任何冗余的 state 吗？
+
+```jsx
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+    setFullName(e.target.value + ' ' + lastName);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+    setFullName(firstName + ' ' + e.target.value);
+  }
+
+  return (
+    <>
+      <h2>Let’s check you in</h2>
+      <label>
+        First name:{' '}
+        <input
+          value={firstName}
+          onChange={handleFirstNameChange}
+        />
+      </label>
+      <label>
+        Last name:{' '}
+        <input
+          value={lastName}
+          onChange={handleLastNameChange}
+        />
+      </label>
+      <p>
+        Your ticket will be issued to: <b>{fullName}</b>
+      </p>
+    </>
+  );
+}
+```
+
+这个表单有三个 state 变量：`firstName`、`lastName` 和 `fullName`。然而，`fullName` 是多余的。*在渲染期间，你始终可以从 `firstName` 和 `lastName` 中计算出 `fullName`，因此需要把它从 state 中删除。*
+
+你可以这样做：
+
+```jsx
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  const fullName = firstName + ' ' + lastName;
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+  }
+
+  return (
+    <>
+      <h2>Let’s check you in</h2>
+      <label>
+        First name:{' '}
+        <input
+          value={firstName}
+          onChange={handleFirstNameChange}
+        />
+      </label>
+      <label>
+        Last name:{' '}
+        <input
+          value={lastName}
+          onChange={handleLastNameChange}
+        />
+      </label>
+      <p>
+        Your ticket will be issued to: <b>{fullName}</b>
+      </p>
+    </>
+  );
+}
+```
+
+这里的 `fullName` 不是 一个 state 变量。相反，它是在渲染期间中计算出的：
+
+```jsx
+const fullName = firstName + ' ' + lastName;
+```
+
+因此，更改处理程序不需要做任何特殊操作来更新它。当你调用 `setFirstName` 或 `setLastName` 时，你会触发一次重新渲染，然后下一个 `fullName` 将从新数据中计算出来。
