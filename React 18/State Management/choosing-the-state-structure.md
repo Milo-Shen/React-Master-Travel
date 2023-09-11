@@ -1728,3 +1728,54 @@ export default function MailClient() {
   );
 }
 ```
+
+也可以使用 Set 来优化:
+
+```jsx
+import { useState } from 'react';
+import { letters } from './data.js';
+import Letter from './Letter.js';
+
+export default function MailClient() {
+  const [selectedIds, setSelectedIds] = useState(
+    new Set()
+  );
+
+  const [selectedCount, setSelectedCount] = useState(0);
+
+  function handleToggle(toggledId) {
+    // Create a copy (to avoid mutation).
+    if (selectedIds.has(toggledId)) {
+      selectedIds.delete(toggledId);
+      setSelectedCount( x => x - 1 );
+    } else {
+      selectedIds.add(toggledId);
+      setSelectedCount( x => x + 1 );
+    }
+  }
+
+  return (
+    <>
+      <h2>Inbox</h2>
+      <ul>
+        {letters.map(letter => (
+          <Letter
+            key={letter.id}
+            letter={letter}
+            isSelected={
+              selectedIds.has(letter.id)
+            }
+            onToggle={handleToggle}
+          />
+        ))}
+        <hr />
+        <p>
+          <b>
+            You selected {selectedCount} letters
+          </b>
+        </p>
+      </ul>
+    </>
+  );
+}
+```
