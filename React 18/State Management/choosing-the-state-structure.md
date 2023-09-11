@@ -1496,3 +1496,86 @@ export const initialLetters = [{
   isStarred: false,
 }];
 ```
+
+修复后: 
+
+### App.js
+```jsx
+import { useState } from 'react';
+import { initialLetters } from './data.js';
+import Letter from './Letter.js';
+
+export default function MailClient() {
+  const [letters, setLetters] = useState(initialLetters);
+  const [highlightedId, setHighlightedId ] = useState(null);
+
+  function handleHover(letterId) {
+    setHighlightedId(letterId);
+  }
+
+  function handleStar(starredId) {
+    setLetters(letters.map(letter => {
+      if (letter.id === starredId) {
+        return {
+          ...letter,
+          isStarred: !letter.isStarred
+        };
+      } else {
+        return letter;
+      }
+    }));
+  }
+
+  return (
+    <>
+      <h2>Inbox</h2>
+      <ul>
+        {letters.map(letter => (
+          <Letter
+            key={letter.id}
+            letter={letter}
+            isHighlighted={
+              letter.id === highlightedId
+            }
+            onHover={handleHover}
+            onToggleStar={handleStar}
+          />
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+### Letter.js
+```jsx
+export default function Letter({
+  letter,
+  isHighlighted,
+  onHover,
+  onToggleStar,
+}) {
+  return (
+    <li
+      className={
+        isHighlighted ? 'highlighted' : ''
+      }
+      onFocus={() => {
+        onHover(letter.id);        
+      }}
+      onPointerMove={() => {
+        onHover(letter.id);
+      }}
+    >
+      <button onClick={() => {
+        onToggleStar(letter.id);
+      }}>
+        {letter.isStarred ? 'Unstar' : 'Star'}
+      </button>
+      {letter.subject}
+    </li>
+  )
+}
+```
+
+这个问题点在于你将字母对象存储在 `highlightedLetter` 中。但是，你也将相同的信息存储在 `letters` 数组中。因此，你的 state *存在重复！* 当你在按钮点击后更新 `letters` 数组时，会创建一个新的字母对象，它与 `highlightedLetter` 不同。这就是为什么` highlightedLetter === letter` 执行变为 `false`，并且高亮消失的原因。当指针移动时下一次调用 `setHighlightedLetter` 时它会重新出现。
