@@ -1480,7 +1480,7 @@ export default function Letter({
 }
 ```
 
-### data.js
+#### data.js
 ```jsx
 export const initialLetters = [{
   id: 0,
@@ -1499,7 +1499,7 @@ export const initialLetters = [{
 
 修复后: 
 
-### App.js
+#### App.js
 ```jsx
 import { useState } from 'react';
 import { initialLetters } from './data.js';
@@ -1547,7 +1547,7 @@ export default function MailClient() {
 }
 ```
 
-### Letter.js
+#### Letter.js
 ```jsx
 export default function Letter({
   letter,
@@ -1579,3 +1579,152 @@ export default function Letter({
 ```
 
 这个问题点在于你将字母对象存储在 `highlightedLetter` 中。但是，你也将相同的信息存储在 `letters` 数组中。因此，你的 state *存在重复！* 当你在按钮点击后更新 `letters` 数组时，会创建一个新的字母对象，它与 `highlightedLetter` 不同。这就是为什么` highlightedLetter === letter` 执行变为 `false`，并且高亮消失的原因。当指针移动时下一次调用 `setHighlightedLetter` 时它会重新出现。
+
+### 第 4 个挑战 共 4 个挑战: 实现多选功能
+在这个例子中，每个 `Letter` 都有一个 `isSelected` prop 和一个 `onToggle` 处理程序来标记它为选定 state。这样做是有效的，但是 state 被存储为 `selectedId`（也可以是 `null` 或 ID），因此任何时候只能选择一个 `letter`。
+
+你需要将 state 结构更改为支持多选功能。（在编写代码之前，请考虑如何构建它。）每个复选框应该独立于其他复选框。单击已选择的项目应取消选择。最后，页脚应显示所选项目的正确数量。
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import { letters } from './data.js';
+import Letter from './Letter.js';
+
+export default function MailClient() {
+  const [selectedId, setSelectedId] = useState(null);
+
+  // TODO: 支持多选
+  const selectedCount = 1;
+
+  function handleToggle(toggledId) {
+    // TODO: 支持多选
+    setSelectedId(toggledId);
+  }
+
+  return (
+    <>
+      <h2>Inbox</h2>
+      <ul>
+        {letters.map(letter => (
+          <Letter
+            key={letter.id}
+            letter={letter}
+            isSelected={
+              // TODO: 支持多选
+              letter.id === selectedId
+            }
+            onToggle={handleToggle}
+          />
+        ))}
+        <hr />
+        <p>
+          <b>
+            You selected {selectedCount} letters
+          </b>
+        </p>
+      </ul>
+    </>
+  );
+}
+```
+
+#### Letter.js
+```jsx
+export default function Letter({
+  letter,
+  onToggle,
+  isSelected,
+}) {
+  return (
+    <li className={
+      isSelected ? 'selected' : ''
+    }>
+      <label>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => {
+            onToggle(letter.id);
+          }}
+        />
+        {letter.subject}
+      </label>
+    </li>
+  )
+}
+```
+
+#### data.js
+```jsx
+export const letters = [{
+  id: 0,
+  subject: 'Ready for adventure?',
+  isStarred: true,
+}, {
+  id: 1,
+  subject: 'Time to check in!',
+  isStarred: false,
+}, {
+  id: 2,
+  subject: 'Festival Begins in Just SEVEN Days!',
+  isStarred: false,
+}];
+```
+
+修改为:
+
+在 state 中保留一个 `selectedIds` 数组，而不是单个的 `selectedId`。例如，如果您选择了第一个和最后一个字母，则它将包含 `[0, 2]`。当没有选定任何内容时，它将为空数组 `[]`：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import { letters } from './data.js';
+import Letter from './Letter.js';
+
+export default function MailClient() {
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  const selectedCount = selectedIds.length;
+
+  function handleToggle(toggledId) {
+    // 它以前是被选中的吗？
+    if (selectedIds.includes(toggledId)) {
+      // Then remove this ID from the array.
+      setSelectedIds(selectedIds.filter(id =>
+        id !== toggledId
+      ));
+    } else {
+      // 否则，增加 ID 到数组中。
+      setSelectedIds([
+        ...selectedIds,
+        toggledId
+      ]);
+    }
+  }
+
+  return (
+    <>
+      <h2>Inbox</h2>
+      <ul>
+        {letters.map(letter => (
+          <Letter
+            key={letter.id}
+            letter={letter}
+            isSelected={
+              selectedIds.includes(letter.id)
+            }
+            onToggle={handleToggle}
+          />
+        ))}
+        <hr />
+        <p>
+          <b>
+            You selected {selectedCount} letters
+          </b>
+        </p>
+      </ul>
+    </>
+  );
+}
+```
