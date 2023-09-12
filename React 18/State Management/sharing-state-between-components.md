@@ -61,3 +61,20 @@ export default function Accordion() {
 3. 为共同的父组件添加 state ，并将其与事件处理函数一起向下传递。
 
 这样，`Accordion` 组件就可以控制 2 个 `Panel` 组件，保证同一时间只能展开一个。
+
+### 第 1 步: 从子组件中移除状态 
+你将把 `Panel` 组件对 `isActive` 的控制权交给他们的父组件。这意味着，父组件会将 `isActive` 作为 prop 传给子组件 `Panel`。我们先从 `Panel` 组件中 删除下面这一行：
+
+```jsx
+const [isActive, setIsActive] = useState(false);
+```
+
+然后，把 `isActive` 加入 `Panel` 组件的 `props` 中：
+
+```jsx
+function Panel({ title, children, isActive }) {
+}
+```
+
+现在 `Panel` 的父组件就可以通过 向下传递 prop 来 控制 `isActive`。但相反地，`Panel` 组件对 `isActive` 的值 没有控制权 —— 现在完全由父组件决定！
+
