@@ -121,3 +121,84 @@ function Panel({ title, children, isActive }) {
 ```
 
 你可以尝试修改 `Accordion` 组件中 `isActive` 的值，并在屏幕上查看结果。
+
+### 第 3 步: 为公共父组件添加状态 
+状态提升通常会改变原状态的数据存储类型。
+
+在这个例子中，一次只能激活一个面板。这意味着 `Accordion` 这个父组件需要记录 哪个 面板是被激活的面板。我们可以用数字作为当前被激活 `Panel` 的索引，而不是 `boolean` 值：
+
+```jsx
+const [activeIndex, setActiveIndex] = useState(0);
+```
+
+当 `activeIndex` 为 `0` 时，激活第一个面板，为 `1` 时，激活第二个面板。
+
+在任意一个 `Panel` 中点击“显示”按钮都需要更改 `Accordion` 中的激活索引值。 `Panel` 中无法直接设置状态 `activeIndex` 的值，因为该状态是在 `Accordion` 组件内部定义的。 `Accordion` 组件需要 显式允许 `Panel` 组件通过 将事件处理程序作为 prop 向下传递 来更改其状态：
+
+```jsx
+<>
+  <Panel
+    isActive={activeIndex === 0}
+    onShow={() => setActiveIndex(0)}
+  >
+    ...
+  </Panel>
+  <Panel
+    isActive={activeIndex === 1}
+    onShow={() => setActiveIndex(1)}
+  >
+    ...
+  </Panel>
+</>
+```
+
+现在 `Panel` 组件中的` <button>` 将使用 `onShow` 这个属性作为其点击事件的处理程序：
+
+```jsx
+import { useState } from 'react';
+
+export default function Accordion() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  return (
+    <>
+      <h2>哈萨克斯坦，阿拉木图</h2>
+      <Panel
+        title="关于"
+        isActive={activeIndex === 0}
+        onShow={() => setActiveIndex(0)}
+      >
+        阿拉木图人口约200万，是哈萨克斯坦最大的城市。它在 1929 年到 1997 年间都是首都。
+      </Panel>
+      <Panel
+        title="词源"
+        isActive={activeIndex === 1}
+        onShow={() => setActiveIndex(1)}
+      >
+        这个名字来自于 <span lang="kk-KZ">алма</span>，哈萨克语中“苹果”的意思，经常被翻译成“苹果之乡”。事实上，阿拉木图的周边地区被认为是苹果的发源地，<i lang="la">Malus sieversii</i> 被认为是现今苹果的祖先。
+      </Panel>
+    </>
+  );
+}
+
+function Panel({
+  title,
+  children,
+  isActive,
+  onShow
+}) {
+  return (
+    <section className="panel">
+      <h3>{title}</h3>
+      {isActive ? (
+        <p>{children}</p>
+      ) : (
+        <button onClick={onShow}>
+          显示
+        </button>
+      )}
+    </section>
+  );
+}
+```
+
+这样，我们就完成了对状态的提升！将状态移至公共父组件中可以让你更好的管理这两个面板。使用激活索引值代替之前的 是否显示 标识确保了一次只能激活一个面板。而通过向下传递事件处理函数可以让子组件修改父组件的状态。
