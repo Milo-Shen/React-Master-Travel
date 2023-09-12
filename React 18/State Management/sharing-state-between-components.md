@@ -78,3 +78,46 @@ function Panel({ title, children, isActive }) {
 
 现在 `Panel` 的父组件就可以通过 向下传递 prop 来 控制 `isActive`。但相反地，`Panel` 组件对 `isActive` 的值 没有控制权 —— 现在完全由父组件决定！
 
+### 第 2 步: 从公共父组件传递硬编码数据 
+为了实现状态提升，必须定位到你想协调的 两个 子组件最近的公共父组件：
+
++ Accordion (最近的公共父组件)
+  + Panel
+  + Panel
+
+在这个例子中，公共父组件是 `Accordion`。因为它位于两个面板之上，可以控制它们的 props，所以它将成为当前激活面板的“控制之源”。通过 `Accordion` 组件将硬编码值 `isActive`（例如 `true` ）传递给两个面板：
+
+```jsx
+import { useState } from 'react';
+
+export default function Accordion() {
+  return (
+    <>
+      <h2>哈萨克斯坦，阿拉木图</h2>
+      <Panel title="关于" isActive={true}>
+        阿拉木图人口约200万，是哈萨克斯坦最大的城市。它在 1929 年到 1997 年间都是首都。
+      </Panel>
+      <Panel title="词源" isActive={true}>
+        这个名字来自于 <span lang="kk-KZ">алма</span>，哈萨克语中“苹果”的意思，经常被翻译成“苹果之乡”。事实上，阿拉木图的周边地区被认为是苹果的发源地，<i lang="la">Malus sieversii</i> 被认为是现今苹果的祖先。
+      </Panel>
+    </>
+  );
+}
+
+function Panel({ title, children, isActive }) {
+  return (
+    <section className="panel">
+      <h3>{title}</h3>
+      {isActive ? (
+        <p>{children}</p>
+      ) : (
+        <button onClick={() => setIsActive(true)}>
+          显示
+        </button>
+      )}
+    </section>
+  );
+}
+```
+
+你可以尝试修改 `Accordion` 组件中 `isActive` 的值，并在屏幕上查看结果。
