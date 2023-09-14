@@ -363,3 +363,39 @@ function Counter({ isFancy }) {
 当你勾选复选框后计数器的 state 被重置了。虽然你渲染了一个 `Counter`，但是 `div` 的第一个子组件从 `div` 变成了 `section`。当子组件 `div` 从 DOM 中被移除的时候，它底下的整棵树（包含 `Counter` 以及它的 state）也都被销毁了。
 
 一般来说，*如果你想在重新渲染时保留 state，几次渲染中的树形结构就应该相互“匹配”*。结构不同就会导致 state 的销毁，因为 React 会在将一个组件从树中移除时销毁它的 state。
+
+### 陷阱
+以下是为什么你不应该把组件函数的定义嵌套起来的原因。
+
+示例中， `MyTextField` 组件被定义在 `MyComponent` 内部：
+
+```jsx
+import { useState } from 'react';
+
+export default function MyComponent() {
+  const [counter, setCounter] = useState(0);
+
+  function MyTextField() {
+    const [text, setText] = useState('');
+
+    return (
+      <input
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+    );
+  }
+
+  return (
+    <>
+      <MyTextField />
+      <button onClick={() => {
+        setCounter(counter + 1)
+      }}>点击了 {counter} 次</button>
+    </>
+  );
+}
+```
+
+每次你点击按钮，输入框的 state 都会消失！这是因为每次 `MyComponent` 渲染时都会创建一个 不同 的 `MyTextField` 函数。你在相同位置渲染的是 不同 的组件，所以 React 将其下所有的 state 都重置了。这样会导致 bug 以及性能问题。*为了避免这个问题， 永远要将组件定义在最上层并且不要把它们的定义嵌套起来*。
+
