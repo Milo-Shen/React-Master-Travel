@@ -245,3 +245,121 @@ function Counter({ isFancy }) {
 你可能以为当你勾选复选框的时候 `state` 会被重置，但它并没有！这是因为 两个 `<Counter />` 标签被渲染在了相同的位置。 React 不知道你的函数里是如何进行条件判断的，它只会“看到”你返回的树。在这两种情况下，App 组件都会返回一个包裹着 `<Counter />` 作为第一个子组件的 `div`。这就是 React 认为它们是 同一个 `<Counter />` 的原因。
 
 你可以认为它们有相同的“地址”：根组件的第一个子组件的第一个子组件。不管你的逻辑是怎么组织的，这就是 React 在前后两次渲染之间将它们进行匹配的方式。
+
+## 相同位置的不同组件会使 state 重置 
+在这个例子中，勾选复选框会将 `<Counter>` 替换为一个 `<p>`：
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [isPaused, setIsPaused] = useState(false);
+  return (
+    <div>
+      {isPaused ? (
+        <p>待会见！</p> 
+      ) : (
+        <Counter /> 
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={isPaused}
+          onChange={e => {
+            setIsPaused(e.target.checked)
+          }}
+        />
+        休息一下
+      </label>
+    </div>
+  );
+}
+
+function Counter() {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>
+        加一
+      </button>
+    </div>
+  );
+}
+```
+
+示例中，你在相同位置对 不同 的组件类型进行切换。刚开始 `<div>` 的第一个子组件是一个 `Counter`。但是当你切换成 `p` 时，React 将 `Counter` 从 UI 树中移除了并销毁了它的状态。
+
+并且，*当你在相同位置渲染不同的组件时，组件的整个子树都会被重置*。要验证这一点，可以增加计数器的值然后勾选复选框：
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [isFancy, setIsFancy] = useState(false);
+  return (
+    <div>
+      {isFancy ? (
+        <div>
+          <Counter isFancy={true} /> 
+        </div>
+      ) : (
+        <section>
+          <Counter isFancy={false} />
+        </section>
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={isFancy}
+          onChange={e => {
+            setIsFancy(e.target.checked)
+          }}
+        />
+        使用好看的样式
+      </label>
+    </div>
+  );
+}
+
+function Counter({ isFancy }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+  if (isFancy) {
+    className += ' fancy';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>
+        加一
+      </button>
+    </div>
+  );
+}
+```
+
+当你勾选复选框后计数器的 state 被重置了。虽然你渲染了一个 `Counter`，但是 `div` 的第一个子组件从 `div` 变成了 `section`。当子组件 `div` 从 DOM 中被移除的时候，它底下的整棵树（包含 `Counter` 以及它的 state）也都被销毁了。
+
+一般来说，*如果你想在重新渲染时保留 state，几次渲染中的树形结构就应该相互“匹配”*。结构不同就会导致 state 的销毁，因为 React 会在将一个组件从树中移除时销毁它的 state。
