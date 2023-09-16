@@ -73,3 +73,83 @@ Reducer 是处理状态的另一种方式。你可以通过三个步骤将 `useS
 1. 将设置状态的逻辑 *修改* 成 dispatch 的一个 action；
 2. *编写* 一个 reducer 函数；
 3. 在你的组件中 *使用* reducer。
+
+### 第 1 步: 将设置状态的逻辑修改成 dispatch 的一个 action
+你的事件处理程序目前是通过设置状态来 *实现逻辑的*：
+
+```jsx
+function handleAddTask(text) {
+  setTasks([
+    ...tasks,
+    {
+      id: nextId++,
+      text: text,
+      done: false,
+    },
+  ]);
+}
+
+function handleChangeTask(task) {
+  setTasks(
+    tasks.map((t) => {
+      if (t.id === task.id) {
+        return task;
+      } else {
+        return t;
+      }
+    })
+  );
+}
+
+function handleDeleteTask(taskId) {
+  setTasks(tasks.filter((t) => t.id !== taskId));
+}
+```
+
+移除所有的状态设置逻辑。只留下三个事件处理函数：
+
++ `handleAddTask(text)` 在用户点击 “添加” 时被调用。
++ `handleChangeTask(task)` 在用户切换任务或点击 “保存” 时被调用。
++ `handleDeleteTask(taskId)` 在用户点击 “删除” 时被调用。
+
+使用 reducers 管理状态与直接设置状态略有不同。它不是通过设置状态来告诉 React “要做什么”，而是通过事件处理程序 dispatch 一个 “action” 来指明 “用户刚刚做了什么”。（而状态更新逻辑则保存在其他地方！）因此，我们不再通过事件处理器直接 “设置 `task`”，而是 dispatch 一个 “添加/修改/删除任务” 的 action。这更加符合用户的思维。
+
+```jsx
+function handleAddTask(text) {
+  dispatch({
+    type: 'added',
+    id: nextId++,
+    text: text,
+  });
+}
+
+function handleChangeTask(task) {
+  dispatch({
+    type: 'changed',
+    task: task,
+  });
+}
+
+function handleDeleteTask(taskId) {
+  dispatch({
+    type: 'deleted',
+    id: taskId,
+  });
+}
+```
+
+你传递给 `dispatch` 的对象叫做 “action”：
+
+```jsx
+function handleDeleteTask(taskId) {
+  dispatch(
+    // "action" 对象：
+    {
+      type: 'deleted',
+      id: taskId,
+    }
+  );
+}
+```
+
+它是一个普通的 JavaScript 对象。它的结构是由你决定的，但通常来说，它应该至少包含可以表明 *发生了什么事情* 的信息。（在后面的步骤中，你将会学习如何添加一个 dispatch 函数。）
