@@ -1193,3 +1193,52 @@ let images = [{
   src: 'https://i.imgur.com/3aIiwfm.jpg'
 }];
 ```
+
+### 第 5 个挑战 共 5 个挑战: 修复列表中错位的 state 
+`在这个列表中每个 Contact` 都有个 state 表示它的“显示邮箱”按钮是否已经按过了。点击 `Alice` 的“显示邮箱”按钮，然后勾选“以相反的顺序显示”复选框。你会注意到现在展开的是 `Taylor` 的 邮箱，而 `Alice` 的邮箱已经被移到底部并被收起了。
+
+修复它，使得不管选中的顺序如何，`expanded` state 都与各个联系人相关联。
+
+```jsx
+import { useState } from 'react';
+import Contact from './Contact.js';
+
+export default function ContactList() {
+  const [reverse, setReverse] = useState(false);
+
+  const displayedContacts = [...contacts];
+  if (reverse) {
+    displayedContacts.reverse();
+  }
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          value={reverse}
+          onChange={e => {
+            setReverse(e.target.checked)
+          }}
+        />{' '}
+        以相反的顺序显示
+      </label>
+      <ul>
+        {displayedContacts.map(contact =>
+          <li key={contact.id}>
+            <Contact contact={contact} />
+          </li>
+        )}
+      </ul>
+    </>
+  );
+}
+
+const contacts = [
+  { id: 0, name: 'Alice', email: 'alice@mail.com' },
+  { id: 1, name: 'Bob', email: 'bob@mail.com' },
+  { id: 2, name: 'Taylor', email: 'taylor@mail.com' }
+];
+```
+
+`state` 与树中的位置相关联。 `key` 让你可以指定一个特定的位置，而不依赖于顺序。
