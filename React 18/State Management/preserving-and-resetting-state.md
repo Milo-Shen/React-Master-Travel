@@ -1132,3 +1132,64 @@ const initialContacts = [
   { id: 2, name: 'Bob', email: 'bob@mail.com' }
 ];
 ```
+
+### 第 4 个挑战 共 5 个挑战: 清除正在加载的图片 
+当你点击“下一张”时，浏览器会开始加载下一张图片。但因为它是在相同的 `<img>` 标签中显示的，所以默认情况下，你在下一张图片加载完成前都会看到上一张图片。如果文本必须始终与图片一一对应，那么这种特性可能并不是我们想要的。调整它使得上一张图片在你点击“下一张”时立即被清除。
+
+你可以为 `<img>` 提供一个 key。当 key 更改时，React 将从头开始重新创建 <img> DOM 节点。这样会导致在每张图片加载时出现一个短暂的闪白，所以你不应该对你应用里的每张图片都这样做。但是如果你想确保图片与文本始终匹配，那这么做就是合理的。
+
+```jsx
+import { useState } from 'react';
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const hasNext = index < images.length - 1;
+
+  function handleClick() {
+    if (hasNext) {
+      setIndex(index + 1);
+    } else {
+      setIndex(0);
+    }
+  }
+
+  let image = images[index];
+  return (
+    <>
+      <button onClick={handleClick}>
+        下一张
+      </button>
+      <h3>
+        {images.length} 张图片中的第 {index + 1} 张
+      </h3>
+      <img key={image.src} src={image.src} />
+      <p>
+        {image.place}
+      </p>
+    </>
+  );
+}
+
+let images = [{
+  place: 'Penang, Malaysia',
+  src: 'https://i.imgur.com/FJeJR8M.jpg'
+}, {
+  place: 'Lisbon, Portugal',
+  src: 'https://i.imgur.com/dB2LRbj.jpg'
+}, {
+  place: 'Bilbao, Spain',
+  src: 'https://i.imgur.com/z08o2TS.jpg'
+}, {
+  place: 'Valparaíso, Chile',
+  src: 'https://i.imgur.com/Y3utgTi.jpg'
+}, {
+  place: 'Schwyz, Switzerland',
+  src: 'https://i.imgur.com/JBbMpWY.jpg'
+}, {
+  place: 'Prague, Czechia',
+  src: 'https://i.imgur.com/QwUKKmF.jpg'
+}, {
+  place: 'Ljubljana, Slovenia',
+  src: 'https://i.imgur.com/3aIiwfm.jpg'
+}];
+```
