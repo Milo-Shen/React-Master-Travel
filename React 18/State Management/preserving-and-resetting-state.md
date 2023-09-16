@@ -834,3 +834,111 @@ function Form() {
 
 这样 `Form` 就会始终是第二个子组件，所以它就会保持在相同位置并保留它的 state。但是这种方法特别不明显，并会引入一个风险因素——其他人可能会删除那个 `null`。
 
+### 第 2 个挑战 共 5 个挑战: 交换两个表单字段 
+这个表单可以让你输入姓氏和名字。它还有一个复选框控制哪个字段放在前面。当你勾选复选框时，“姓氏”字段将出现在“名字”字段之前。
+
+它几乎可以正常使用，但有一个 bug。如果你填写了“名字”输入框并勾选复选框，文本将保留在第一个输入框(也就是现在的“姓氏”)。修复它，使得输入框文本在你调换顺序时 *也* 会跟着移动。
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [reverse, setReverse] = useState(false);
+  let checkbox = (
+    <label>
+      <input
+        type="checkbox"
+        checked={reverse}
+        onChange={e => setReverse(e.target.checked)}
+      />
+      调换顺序
+    </label>
+  );
+  if (reverse) {
+    return (
+      <>
+        <Field label="姓氏" /> 
+        <Field label="名字" />
+        {checkbox}
+      </>
+    );
+  } else {
+    return (
+      <>
+        <Field label="名字" /> 
+        <Field label="姓氏" />
+        {checkbox}
+      </>
+    );    
+  }
+}
+
+function Field({ label }) {
+  const [text, setText] = useState('');
+  return (
+    <label>
+      {label}：
+      <input
+        type="text"
+        value={text}
+        placeholder={label}
+        onChange={e => setText(e.target.value)}
+      />
+    </label>
+  );
+}
+```
+
+修复后:
+
+为 `if` 和 `else` 分支中的两个 `<Field>` 组件都指定一个 `key`。这样可以告诉 React 如何为两个 `<Field>` “匹配”正确的状态——即使它们在父组件中的顺序会发生变化：
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [reverse, setReverse] = useState(false);
+  let checkbox = (
+    <label>
+      <input
+        type="checkbox"
+        checked={reverse}
+        onChange={e => setReverse(e.target.checked)}
+      />
+      调换顺序
+    </label>
+  );
+  if (reverse) {
+    return (
+      <>
+        <Field key="lastName" label="姓氏" /> 
+        <Field key="firstName" label="名字" />
+        {checkbox}
+      </>
+    );
+  } else {
+    return (
+      <>
+        <Field key="firstName" label="名字" /> 
+        <Field key="lastName" label="姓氏" />
+        {checkbox}
+      </>
+    );    
+  }
+}
+
+function Field({ label }) {
+  const [text, setText] = useState('');
+  return (
+    <label>
+      {label}：
+      <input
+        type="text"
+        value={text}
+        placeholder={label}
+        onChange={e => setText(e.target.value)}
+      />
+    </label>
+  );
+}
+```
