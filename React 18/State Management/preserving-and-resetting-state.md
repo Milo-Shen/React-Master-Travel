@@ -942,3 +942,193 @@ function Field({ label }) {
   );
 }
 ```
+
+### 第 3 个挑战 共 5 个挑战: 重置详情表单 
+
+这是一个可编辑的联系人列表。你可以编辑所选联系人的详细信息，然后点击“保存”进行更新或点击“重置”来撤消你的修改。
+
+当你选中另一个联系人（比如 Alice），状态就会更新，但表单会一直显示之前那个联系人的详细信息。修复它，使表单在所选联系人改变时重置。
+
+```jsx
+import { useState } from 'react';
+import ContactList from './ContactList.js';
+import EditContact from './EditContact.js';
+
+export default function ContactManager() {
+  const [
+    contacts,
+    setContacts
+  ] = useState(initialContacts);
+  const [
+    selectedId,
+    setSelectedId
+  ] = useState(0);
+  const selectedContact = contacts.find(c =>
+    c.id === selectedId
+  );
+
+  function handleSave(updatedData) {
+    const nextContacts = contacts.map(c => {
+      if (c.id === updatedData.id) {
+        return updatedData;
+      } else {
+        return c;
+      }
+    });
+    setContacts(nextContacts);
+  }
+
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={id => setSelectedId(id)}
+      />
+      <hr />
+      <EditContact
+        initialData={selectedContact}
+        onSave={handleSave}
+      />
+    </div>
+  )
+}
+
+const initialContacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' }
+];
+```
+
+#### ContactList.js
+```jsx
+export default function ContactList({
+  contacts,
+  selectedId,
+  onSelect
+}) {
+  return (
+    <section>
+      <ul>
+        {contacts.map(contact =>
+          <li key={contact.id}>
+            <button onClick={() => {
+              onSelect(contact.id);
+            }}>
+              {contact.id === selectedId ?
+                <b>{contact.name}</b> :
+                contact.name
+              }
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+```
+
+#### EditContact.js
+```jsx
+import { useState } from 'react';
+
+export default function EditContact({ initialData, onSave }) {
+  const [name, setName] = useState(initialData.name);
+  const [email, setEmail] = useState(initialData.email);
+  return (
+    <section>
+      <label>
+        名称：
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        邮箱：
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
+      </label>
+      <button onClick={() => {
+        const updatedData = {
+          id: initialData.id,
+          name: name,
+          email: email
+        };
+        onSave(updatedData);
+      }}>
+        保存
+      </button>
+      <button onClick={() => {
+        setName(initialData.name);
+        setEmail(initialData.email);
+      }}>
+        重置
+      </button>
+    </section>
+  );
+}
+```
+
+修改为:
+
+将 `key={selectedId}` 赋给 `EditContact` 组件。这样在不同联系人之间切换将重置表单：
+
+#### App.js
+```jsx
+import { useState } from 'react';
+import ContactList from './ContactList.js';
+import EditContact from './EditContact.js';
+
+export default function ContactManager() {
+  const [
+    contacts,
+    setContacts
+  ] = useState(initialContacts);
+  const [
+    selectedId,
+    setSelectedId
+  ] = useState(0);
+  const selectedContact = contacts.find(c =>
+    c.id === selectedId
+  );
+
+  function handleSave(updatedData) {
+    const nextContacts = contacts.map(c => {
+      if (c.id === updatedData.id) {
+        return updatedData;
+      } else {
+        return c;
+      }
+    });
+    setContacts(nextContacts);
+  }
+
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={id => setSelectedId(id)}
+      />
+      <hr />
+      <EditContact
+        key={selectedId}
+        initialData={selectedContact}
+        onSave={handleSave}
+      />
+    </div>
+  )
+}
+
+const initialContacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' }
+];
+```
