@@ -252,3 +252,88 @@ function tasksReducer(tasks, action) {
 我们建议将每个 `case` 块包装到 `{` 和 `}` 花括号中，这样在不同 `case` 中声明的变量就不会互相冲突。此外，`case` 通常应该以 `return` 结尾。如果你忘了 `return`，代码就会 进入 到下一个 `case`，这就会导致错误！
 
 如果你还不熟悉 `switch` 语句，使用 `if/else` 也是可以的。
+
+#### 为什么称之为 reducer? 
+尽管 `reducer` 可以 “减少” 组件内的代码量，但它实际上是以数组上的 `reduce()` 方法命名的。
+
+`reduce()` 允许你将数组中的多个值 “累加” 成一个值：
+
+```jsx
+const arr = [1, 2, 3, 4, 5];
+const sum = arr.reduce(
+  (result, number) => result + number
+); // 1 + 2 + 3 + 4 + 5
+```
+
+你传递给 `reduce` 的函数被称为 “reducer”。它接受 `目前的结果` 和` 当前的值`，然后返回 `下一个结果`。React 中的 `reducer` 和这个是一样的：它们都接受 `目前的状态` 和 `action` ，然后返回 `下一个状态`。这样，`action` 会随着时间推移累积到状态中。
+
+你甚至可以使用 `reduce()` 方法以及 `initialState` 和 `actions` 数组，通过传递你的 `reducer` 函数来计算最终的状态：
+
+##### Index.js
+```jsx
+import tasksReducer from './tasksReducer.js';
+
+let initialState = [];
+let actions = [
+  {type: 'added', id: 1, text: '参观卡夫卡博物馆'},
+  {type: 'added', id: 2, text: '看木偶戏'},
+  {type: 'deleted', id: 1},
+  {type: 'added', id: 3, text: '打卡列侬墙'},
+];
+
+let finalState = actions.reduce(tasksReducer, initialState);
+
+const output = document.getElementById('output');
+output.textContent = JSON.stringify(finalState, null, 2);
+```
+
+##### tasksReducer.js
+```jsx
+export default function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知 action: ' + action.type);
+    }
+  }
+}
+```
+
+##### result
+```json
+[
+  {
+    "id": 2,
+    "text": "看木偶戏",
+    "done": false
+  },
+  {
+    "id": 3,
+    "text": "打卡列侬墙",
+    "done": false
+  }
+]
+```
+
+你可能不需要自己做这些，但这与 React 所做的很相似！
