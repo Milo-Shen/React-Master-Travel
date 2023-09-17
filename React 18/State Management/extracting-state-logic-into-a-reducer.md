@@ -640,3 +640,13 @@ const initialTasks = [
 ```
 
 Reducers 应该是纯净的，所以它们不应该去修改 state。而 Immer 为你提供了一种特殊的 `draft` 对象，你可以通过它安全的修改 state。在底层，Immer 会基于当前 state 创建一个副本。这就是为什么通过 `useImmerReducer` 来管理 reducers 时，可以修改第一个参数，且不需要返回一个新的 state 的原因。
+
+## 摘要
++ 把 `useState` 转化为 `useReducer`：
+     通过事件处理函数 dispatch actions；
+     编写一个 reducer 函数，它接受传入的 state 和一个 action，并返回一个新的 state；
+     使用 `useReducer` 替换 `useState`；
++ Reducers 可能需要你写更多的代码，但是这有利于代码的调试和测试。
++ Reducers 必须是纯净的。
++ 每个 action 都描述了一个单一的用户交互。
++ 使用 Immer 来帮助你在 reducer 里直接修改状态。
