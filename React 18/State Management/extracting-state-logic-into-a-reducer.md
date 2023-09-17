@@ -163,3 +163,92 @@ dispatch({
   // 其它字段放这里
 });
 ```
+
+### 第 2 步: 编写一个 reducer 函数 
+reducer 函数就是你放置状态逻辑的地方。它接受两个参数，分别为当前 state 和 action 对象，并且返回的是更新后的 state：
+
+```jsx
+function yourReducer(state, action) {
+  // 给 React 返回更新后的状态
+}
+```
+
+React 会将状态设置为你从 reducer 返回的状态。
+
+在这个例子中，要将状态设置逻辑从事件处理程序移到 reducer 函数中，你需要：
+
+1. 声明当前状态（`tasks`）作为第一个参数；
+2. 声明 `action` 对象作为第二个参数；
+3. 从 `reducer` 返回 下一个 状态（React 会将旧的状态设置为这个最新的状态）。
+
+下面是所有迁移到 `reducer` 函数的状态设置逻辑：
+
+```jsx
+function tasksReducer(tasks, action) {
+  if (action.type === 'added') {
+    return [
+      ...tasks,
+      {
+        id: action.id,
+        text: action.text,
+        done: false,
+      },
+    ];
+  } else if (action.type === 'changed') {
+    return tasks.map((t) => {
+      if (t.id === action.task.id) {
+        return action.task;
+      } else {
+        return t;
+      }
+    });
+  } else if (action.type === 'deleted') {
+    return tasks.filter((t) => t.id !== action.id);
+  } else {
+    throw Error('未知 action: ' + action.type);
+  }
+}
+```
+
+由于 `reducer` 函数接受 `state`（tasks）作为参数，因此你可以 *在组件之外声明它*。这减少了代码的缩进级别，提升了代码的可读性。
+
+#### 注意
+上面的代码使用了 `if/els`e 语句，但是在 reducers 中使用 switch 语句 是一种惯例。两种方式结果是相同的，但 switch 语句读起来一目了然。
+
+在本文档的后续部分我们会像这样使用：
+
+```jsx
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知 action: ' + action.type);
+    }
+  }
+}
+```
+
+我们建议将每个 `case` 块包装到 `{` 和 `}` 花括号中，这样在不同 `case` 中声明的变量就不会互相冲突。此外，`case` 通常应该以 `return` 结尾。如果你忘了 `return`，代码就会 进入 到下一个 `case`，这就会导致错误！
+
+如果你还不熟悉 `switch` 语句，使用 `if/else` 也是可以的。
