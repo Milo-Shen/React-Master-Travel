@@ -559,3 +559,84 @@ Reducers 并非没有缺点！以下是比较它们的几种方法：
 
 + *reducers 必须是纯粹的*。 这一点和 状态更新函数 是相似的，`reducers` 在是在渲染时运行的！（`actions` 会排队直到下一次渲染)。 这就意味着 `reducers` 必须纯净，即当输入相同时，输出也是相同的。它们 *不应该包含异步请求、定时器或者任何副作用（对组件外部有影响的操作）* 。它们 *应该以不可变值的方式去更新 对象 和 数组*。
 + *每个 action 都描述了一个单一的用户交互，即使它会引发数据的多个变化*。 举个例子，如果用户在一个由 `reducer` 管理的表单（包含五个表单项）中点击了 重置按钮，那么 `dispatch` 一个 `reset_form` 的 `action` 比 `dispatch` 五个单独的 `set_field` 的 `action` 更加合理。如果你在一个 `reducer` 中打印了所有的 `action` 日志，那么这个日志应该是很清晰的，它能让你以某种步骤复现已发生的交互或响应。这对代码调试很有帮助！
+
+## 使用 Immer 简化 reducers 
+与在平常的 `state` 中 修改对象 和 数组 一样，你可以使用 `Immer` 这个库来简化 `reducer`。在这里，`useImmerReducer` 让你可以通过 `push` 或 `arr[i] =` 来修改 state ：
+
+### App.js
+```jsx
+import { useImmerReducer } from 'use-immer';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+function tasksReducer(draft, action) {
+  switch (action.type) {
+    case 'added': {
+      draft.push({
+        id: action.id,
+        text: action.text,
+        done: false,
+      });
+      break;
+    }
+    case 'changed': {
+      const index = draft.findIndex((t) => t.id === action.task.id);
+      draft[index] = action.task;
+      break;
+    }
+    case 'deleted': {
+      return draft.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知 action：' + action.type);
+    }
+  }
+}
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useImmerReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>布拉格的行程安排</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  {id: 0, text: '参观卡夫卡博物馆', done: true},
+  {id: 1, text: '看木偶戏', done: false},
+  {id: 2, text: '打卡列侬墙', done: false},
+];
+```
+
+Reducers 应该是纯净的，所以它们不应该去修改 state。而 Immer 为你提供了一种特殊的 `draft` 对象，你可以通过它安全的修改 state。在底层，Immer 会基于当前 state 创建一个副本。这就是为什么通过 `useImmerReducer` 来管理 reducers 时，可以修改第一个参数，且不需要返回一个新的 state 的原因。
