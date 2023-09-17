@@ -337,3 +337,208 @@ export default function tasksReducer(tasks, action) {
 ```
 
 你可能不需要自己做这些，但这与 React 所做的很相似！
+
+### 第 3 步: 在组件中使用 reducer 
+最后，你需要将 `tasksReducer` 导入到组件中。记得先从 React 中导入 `useReducer` Hook：
+
+```jsx
+import { useReducer } from 'react';
+```
+
+接下来，你就可以替换掉之前的 `useState`:
+
+```jsx
+const [tasks, setTasks] = useState(initialTasks);
+```
+
+只需要像下面这样使用 `useReducer`:
+
+```jsx
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+`useReducer` 和 `useState` 很相似——你必须给它传递一个初始状态，它会返回一个有状态的值和一个设置该状态的函数（在这个例子中就是 dispatch 函数）。但是，它们两个之间还是有点差异的。
+
+`useReducer` 钩子接受 2 个参数：
+
+1. 一个 reducer 函数
+2. 一个初始的 state
+
+它返回如下内容：
+
+1. 一个有状态的值
+2. 一个 dispatch 函数（用来 “派发” 用户操作给 reducer）
+
+现在一切都准备就绪了！我们在这里把 reducer 定义在了组件的末尾：
+
+#### App.js
+```jsx
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>布拉格的行程安排</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知 action: ' + action.type);
+    }
+  }
+}
+
+let nextId = 3;
+const initialTasks = [
+  {id: 0, text: '参观卡夫卡博物馆', done: true},
+  {id: 1, text: '看木偶戏', done: false},
+  {id: 2, text: '打卡列侬墙', done: false}
+];
+```
+
+如果有需要，你甚至可以把 reducer 移到一个单独的文件中：
+
+#### App.js
+```jsx
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import tasksReducer from './tasksReducer.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>布拉格的行程安排</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  {id: 0, text: '参观卡夫卡博物馆', done: true},
+  {id: 1, text: '看木偶戏', done: false},
+  {id: 2, text: '打卡列侬墙', done: false},
+];
+```
+
+#### taskReducer.js
+```jsx
+export default function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('未知 action：' + action.type);
+    }
+  }
+}
+```
+
+当像这样分离关注点时，我们可以更容易地理解组件逻辑。现在，事件处理程序只通过派发 `action` 来指定 *发生了什么*，而 `reducer` 函数通过响应 `actions` 来决定 *状态如何更新*。
