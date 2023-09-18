@@ -68,3 +68,63 @@ export default function Heading({ level, children }) {
   }
 }
 ```
+
+假设你想让相同 `Section` 中的多个 Heading 具有相同的尺寸：
+
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading level={1}>主标题</Heading>
+      <Section>
+        <Heading level={2}>副标题</Heading>
+        <Heading level={2}>副标题</Heading>
+        <Heading level={2}>副标题</Heading>
+        <Section>
+          <Heading level={3}>子标题</Heading>
+          <Heading level={3}>子标题</Heading>
+          <Heading level={3}>子标题</Heading>
+          <Section>
+            <Heading level={4}>子子标题</Heading>
+            <Heading level={4}>子子标题</Heading>
+            <Heading level={4}>子子标题</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+目前，你将 `level` 参数分别传递给每个 `<Heading>`：
+
+```jsx
+<Section>
+  <Heading level={3}>关于</Heading>
+  <Heading level={3}>照片</Heading>
+  <Heading level={3}>视频</Heading>
+</Section>
+```
+
+将 `level` 参数传递给 `<Section>` 组件而不是传给 `<Heading>` 组件看起来更好一些。这样的话你可以强制使同一个 section 中的所有标题都有相同的尺寸：
+
+```jsx
+<Section level={3}>
+  <Heading>关于</Heading>
+  <Heading>照片</Heading>
+  <Heading>视频</Heading>
+</Section>
+```
+
+但是 `<Heading>` 组件是如何知道离它最近的 `<Section>` 的 `level` 的呢？*这需要子组件可以通过某种方式“访问”到组件树中某处在其上层的数据。*
+
+你不能只通过 props 来实现它。这就是 context 大显身手的地方。你可以通过以下三个步骤来实现它：
+
+1. 创建 一个 `context`。（你可以将其命名为 `LevelContext`, 因为它表示的是标题级别。)
+2. 在需要数据的组件内 使用 刚刚创建的 `context`。（`Heading` 将会使用 `LevelContext`。）
+3. 在指定数据的组件中 提供 这个 `context`。 （`Section` 将会提供 `LevelContext`。）
+
+Context 可以让父节点，甚至是很远的父节点都可以为其内部的整个组件树提供数据。
