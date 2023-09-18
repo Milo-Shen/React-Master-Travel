@@ -221,3 +221,4 @@ export default function Page() {
 注意！这个示例还不能运行。所有 `headings` 的尺寸都一样，因为 即使你正在使用 `context`，但是你还没有提供它。 React 不知道从哪里获取这个 context！
 
 如果你不提供 `context`，React 会使用你在上一步指定的默认值。在这个例子中，你为 `createContext` 传入了 `1` 这个参数，所以 `useContext(LevelContext)` 会返回 `1`，把所有的标题都设置为 `<h1>`。我们通过让每个 `Section` 提供它自己的 context 来修复这个问题。
+
