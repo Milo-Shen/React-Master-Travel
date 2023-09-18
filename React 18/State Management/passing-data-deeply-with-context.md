@@ -128,3 +128,7 @@ export default function Page() {
 3. 在指定数据的组件中 提供 这个 `context`。 （`Section` 将会提供 `LevelContext`。）
 
 Context 可以让父节点，甚至是很远的父节点都可以为其内部的整个组件树提供数据。
+
+### Step 1：创建 context 
+
+首先，你需要创建这个 context，并 *将其从一个文件中导出*，这样你的组件才可以使用它：
