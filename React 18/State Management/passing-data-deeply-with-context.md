@@ -132,3 +132,12 @@ Context 可以让父节点，甚至是很远的父节点都可以为其内部的
 ### Step 1：创建 context 
 
 首先，你需要创建这个 context，并 *将其从一个文件中导出*，这样你的组件才可以使用它：
+
+```jsx
+import { createContext } from 'react';
+
+export const LevelContext = createContext(1);
+```
+
+`createContext` 只需默认值这么一个参数。在这里, `1` 表示最大的标题级别，但是你可以传递任何类型的值（甚至可以传入一个对象）。你将在下一个步骤中见识到默认值的意义。
+
