@@ -141,3 +141,83 @@ export const LevelContext = createContext(1);
 
 `createContext` 只需默认值这么一个参数。在这里, `1` 表示最大的标题级别，但是你可以传递任何类型的值（甚至可以传入一个对象）。你将在下一个步骤中见识到默认值的意义。
 
+### Step 2：使用 Context 
+从 React 中引入 `useContext` Hook 以及你刚刚创建的 context:
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+```
+
+目前，`Heading` 组件从 props 中读取 `level`：
+
+```jsx
+export default function Heading({ level, children }) {
+  // ...
+}
+```
+
+删掉 `level` 参数并从你刚刚引入的 `LevelContext` 中读取值：
+
+```jsx
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  // ...
+}
+```
+
+`useContext` 是一个 Hook。和 `useState` 以及 `useReducer` 一样，你只能在 React 组件中（不是循环或者条件里）立即调用 Hook。*`useContext` 告诉 React `Heading` 组件想要读取 `LevelContext`。*
+
+现在 `Heading` 组件没有 `level` 参数，你不需要再像这样在你的 JSX 中将 level 参数传递给 `Heading`：
+
+```jsx
+<Section>
+  <Heading level={4}>子子标题</Heading>
+  <Heading level={4}>子子标题</Heading>
+  <Heading level={4}>子子标题</Heading>
+</Section>
+```
+
+修改一下 JSX，让 `Section` 组件代替 `Heading` 组件接收 `level` 参数：
+```jsx
+<Section level={4}>
+  <Heading>子子标题</Heading>
+  <Heading>子子标题</Heading>
+  <Heading>子子标题</Heading>
+</Section>
+```
+
+你将修改下边的代码直到它正常运行：
+
+#### App.js
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section level={1}>
+      <Heading>主标题</Heading>
+      <Section level={2}>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Section level={3}>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Section level={4}>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+注意！这个示例还不能运行。所有 `headings` 的尺寸都一样，因为 即使你正在使用 `context`，但是你还没有提供它。 React 不知道从哪里获取这个 context！
+
+如果你不提供 `context`，React 会使用你在上一步指定的默认值。在这个例子中，你为 `createContext` 传入了 `1` 这个参数，所以 `useContext(LevelContext)` 会返回 `1`，把所有的标题都设置为 `<h1>`。我们通过让每个 `Section` 提供它自己的 context 来修复这个问题。
