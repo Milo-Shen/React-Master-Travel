@@ -515,3 +515,13 @@ Context 的工作方式可能会让你想起 CSS 属性继承。在 CSS 中，�
 Context 不局限于静态值。如果你在下一次渲染时传递不同的值，React 将会更新读取它的所有下层组件！这就是 context 经常和 state 结合使用的原因。
 
 一般而言，如果树中不同部分的远距离组件需要某些信息，context 将会对你大有帮助。
+
+## 摘要
++ Context 使组件向其下方的整个树提供信息。
++ 传递 Context 的方法:
+  + 通过 `export const MyContext = createContext(defaultValue)` 创建并导出 context。
+  + 在无论层级多深的任何子组件中，把 `context 传递给 useContext(MyContext)` Hook 来读取它。
+  + 在父组件中把 children 包在 `<MyContext.Provider value={...}>` 中来提供 context。
++ Context 会穿过中间的任何组件。
++ Context 可以让你写出 “较为通用” 的组件。
++ 在使用 context 之前，先试试传递 props 或者将 JSX 作为 children 传递。
