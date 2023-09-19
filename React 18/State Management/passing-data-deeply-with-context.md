@@ -285,3 +285,87 @@ export default function Page() {
 1. 你将一个 `level` 参数传递给 `<Section>`。
 2. `Section` 把它的子元素包在 `<LevelContext.Provider value={level}>` 里面。
 3. `Heading` 使用 `useContext(LevelContext)` 访问上层最近的 `LevelContext` 提供的值。
+
+### 在相同的组件中使用并提供 context 
+目前，你仍需要手动指定每个 `section` 的 `level`：
+
+```
+export default function Page() {
+  return (
+    <Section level={1}>
+      ...
+      <Section level={2}>
+        ...
+        <Section level={3}>
+          ...
+```
+
+由于 context 让你可以从上层的组件读取信息，每个 `Section` 都会从上层的 `Section` 读取 `level`，并自动向下层传递 `level + 1`。
+
+你可以像下面这样做：
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+这样修改之后，你不用将 `level` 参数传给 `<Section>` *或者是* `<Heading>` 了：
+
+#### App.js
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading>主标题</Heading>
+      <Section>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Section>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Section>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+#### Section.js
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+现在，`Heading` 和 `Section` 都通过读取 `LevelContext` 来判断它们的深度。而且 `Section` 把它的子组件都包在 `LevelContext` 中来指定其中的任何内容都处于一个“更深”的级别。
