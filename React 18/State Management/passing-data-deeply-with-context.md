@@ -497,3 +497,7 @@ Context 的工作方式可能会让你想起 CSS 属性继承。在 CSS 中，�
 在 CSS 中，诸如 `color` 和 `background-color` 之类的不同属性不会覆盖彼此。你可以设置所有 `<div>` 的 `color` 为红色，而不会影响 `background-color`。类似地，*不同的 React context 不会覆盖彼此*。你通过 `createContext()` 创建的每个 context 都和其他 context 完全分离，只有使用和提供 *那个特定的* context 的组件才会联系在一起。一个组件可以轻松地使用或者提供许多不同的 context。
 
 ### 写在你使用 context 之前 
+使用 Context 看起来非常诱人！然而，这也意味着它也太容易被过度使用了。*如果你只想把一些 props 传递到多个层级中，这并不意味着你需要把这些信息放到 context 里。*
+
+在使用 context 之前，你可以考虑以下几种替代方案：
+
