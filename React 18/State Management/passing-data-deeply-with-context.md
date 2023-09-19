@@ -222,3 +222,66 @@ export default function Page() {
 
 如果你不提供 `context`，React 会使用你在上一步指定的默认值。在这个例子中，你为 `createContext` 传入了 `1` 这个参数，所以 `useContext(LevelContext)` 会返回 `1`，把所有的标题都设置为 `<h1>`。我们通过让每个 `Section` 提供它自己的 context 来修复这个问题。
 
+### Step 3：提供 context 
+`Section` 组件目前渲染传入它的子组件：
+
+```jsx
+export default function Section({ children }) {
+  return (
+    <section className="section">
+      {children}
+    </section>
+  );
+}
+```
+
+*把它们用 context provider 包裹起来*  以提供 `LevelContext` 给它们：
+
+```jsx
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ level, children }) {
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+这告诉 React：“如果在 `<Section>` 组件中的任何子组件请求 `LevelContext`，给他们这个 `level`。”组件会使用 UI 树中在它上层最近的那个 `<LevelContext.Provider>` 传递过来的值。
+
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section level={1}>
+      <Heading>主标题</Heading>
+      <Section level={2}>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Heading>副标题</Heading>
+        <Section level={3}>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Heading>子标题</Heading>
+          <Section level={4}>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+            <Heading>子子标题</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+这与原始代码的运行结果相同，但是你不需要向每个 `Heading` 组件传递 `level` 参数了！取而代之的是，它通过访问上层最近的 `Section` 来“断定”它的标题级别：
+1. 你将一个 `level` 参数传递给 `<Section>`。
+2. `Section` 把它的子元素包在 `<LevelContext.Provider value={level}>` 里面。
+3. `Heading` 使用 `useContext(LevelContext)` 访问上层最近的 `LevelContext` 提供的值。
