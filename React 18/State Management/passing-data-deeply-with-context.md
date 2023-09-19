@@ -374,3 +374,125 @@ export default function Section({ children }) {
 本示例使用标题级别来展示，因为它们直观地显示了嵌套组件如何覆盖 `context`。但是 `context` 对于许多其他的场景也很有用。你可以用它来传递整个子树需要的任何信息：当前的颜色主题、当前登录的用户等。
 
 ### Context 会穿过中间层级的组件 
+你可以在提供 context 的组件和使用它的组件之间的层级插入任意数量的组件。这包括像 <div> 这样的内置组件和你自己创建的组件。
+
+在这个示例中，相同的 `Post` 组件（带有虚线边框）在两个不同的嵌套层级上渲染。注意，它内部的 `<Heading>` 会自动从最近的 `<Section>` 获取它的级别：
+
+#### App.js
+```jsx
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function ProfilePage() {
+  return (
+    <Section>
+      <Heading>My Profile</Heading>
+      <Post
+        title="旅行者，你好！"
+        body="来看看我的冒险。"
+      />
+      <AllPosts />
+    </Section>
+  );
+}
+
+function AllPosts() {
+  return (
+    <Section>
+      <Heading>帖子</Heading>
+      <RecentPosts />
+    </Section>
+  );
+}
+
+function RecentPosts() {
+  return (
+    <Section>
+      <Heading>最近的帖子</Heading>
+      <Post
+        title="里斯本的味道"
+        body="...那些蛋挞！"
+      />
+      <Post
+        title="探戈节奏中的布宜诺斯艾利斯"
+        body="我爱它！"
+      />
+    </Section>
+  );
+}
+
+function Post({ title, body }) {
+  return (
+    <Section isFancy={true}>
+      <Heading>
+        {title}
+      </Heading>
+      <p><i>{body}</i></p>
+    </Section>
+  );
+}
+```
+
+#### Section.js
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children, isFancy }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className={
+      'section ' +
+      (isFancy ? 'fancy' : '')
+    }>
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+#### Heading.js
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 0:
+      throw Error('Heading 必须在 Section 内部！');
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('未知的 level：' + level);
+  }
+}
+```
+
+#### LevelContext.js
+```jsx
+import { createContext } from 'react';
+
+export const LevelContext = createContext(0);
+```
+
+你不需要做任何特殊的操作。`Section` 为它内部的树指定一个 `context`，所以你可以在任何地方插入一个 `<Heading>`，而且它会有正确的尺寸。在上边的沙箱中尝试一下！
+
+*Context 让你可以编写“适应周围环境”的组件，并且根据 在哪 （或者说 在哪个 context 中）来渲染它们不同的样子。*
+
+Context 的工作方式可能会让你想起 CSS 属性继承。在 CSS 中，你可以为一个 `<div>` 手动指定 `color: blue`，并且其中的任何 DOM 节点，无论多深，都会继承那个颜色，除非中间的其他 DOM 节点用 `color: green` 来覆盖它。类似地，在 React 中，覆盖来自上层的某些 context 的唯一方法是将子组件包裹到一个提供不同值的 context provider 中。
+
+在 CSS 中，诸如 `color` 和 `background-color` 之类的不同属性不会覆盖彼此。你可以设置所有 `<div>` 的 `color` 为红色，而不会影响 `background-color`。类似地，*不同的 React context 不会覆盖彼此*。你通过 `createContext()` 创建的每个 context 都和其他 context 完全分离，只有使用和提供 *那个特定的* context 的组件才会联系在一起。一个组件可以轻松地使用或者提供许多不同的 context。
+
