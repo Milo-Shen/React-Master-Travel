@@ -245,3 +245,114 @@ export const TasksDispatchContext = createContext(null);
 ```
 
 在这里，你把 `null` 作为默认值传递给两个 context。实际值是由 `TaskApp` 组件提供的。
+
+### 第二步: 将 state 和 dispatch 函数 放入 context 
+现在，你可以将所有的 `context` `导入` TaskApp 组件。获取 `useReducer()` 返回的 `tasks` 和 `dispatch` 并将它们 提供 给整个组件树：
+
+```jsx
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+  // ...
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        ...
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+```
+
+现在，你可以同时通过 props 和 context 传递信息：
+
+#### App.js
+```jsx
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(
+    tasksReducer,
+    initialTasks
+  );
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId
+    });
+  }
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        <h1>Day off in Kyoto</h1>
+        <AddTask
+          onAddTask={handleAddTask}
+        />
+        <TaskList
+          tasks={tasks}
+          onChangeTask={handleChangeTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [...tasks, {
+        id: action.id,
+        text: action.text,
+        done: false
+      }];
+    }
+    case 'changed': {
+      return tasks.map(t => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false }
+];
+```
+
+在下一步中，你将删除通过 props 传递的代码。
+
