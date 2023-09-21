@@ -356,3 +356,15 @@ const initialTasks = [
 
 在下一步中，你将删除通过 props 传递的代码。
 
+### Step 3: 在组件树中的任何地方使用 context 
+现在你不需要将 `tasks` 和事件处理程序在组件树中传递：
+
+```jsx
+<TasksContext.Provider value={tasks}>
+  <TasksDispatchContext.Provider value={dispatch}>
+    <h1>Day off in Kyoto</h1>
+    <AddTask />
+    <TaskList />
+  </TasksDispatchContext.Provider>
+</TasksContext.Provider>
+```
