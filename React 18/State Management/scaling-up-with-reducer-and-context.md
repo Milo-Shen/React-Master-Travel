@@ -881,3 +881,8 @@ const initialTasks = [
 ```
 
 你可以将 `TasksProvider` 视为页面的一部分，它知道如何处理 `tasks`。`useTasks` 用来读取它们，`useTasksDispatch` 用来从组件树下的任何组件更新它们。
+
+### 注意
+像 `useTasks` 和 `useTasksDispatch` 这样的函数被称为 自定义 Hook。 如果你的函数名以 `use` 开头，它就被认为是一个自定义 Hook。这让你可以使用其他 Hook，比如 `useContext`。
+
+随着应用的增长，你可能会有许多这样的 context 和 reducer 的组合。这是一种强大的拓展应用并 提升状态 的方式，让你在组件树深处访问数据时无需进行太多工作。
