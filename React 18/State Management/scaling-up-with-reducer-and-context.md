@@ -201,3 +201,25 @@ Reducer 有助于保持事件处理程序的简短明了。但随着应用规模
   onDeleteTask={handleDeleteTask}
 />
 ```
+
+`TaskList` 将事件处理程序传递给 `Task`：
+
+```jsx
+<Task
+  task={task}
+  onChange={onChangeTask}
+  onDelete={onDeleteTask}
+/>
+```
+
+在像这样的小示例里这样做没什么问题，但是如果你有成千上百个组件，传递所有状态和函数可能会非常麻烦！
+
+这就是为什么，比起通过 `props` 传递它们，你可能想把 `tasks` 状态和 `dispatch` 函数都 放入 context。*这样，所有的在 `TaskApp` 组件树之下的组件都不必一直往下传 `props` 而可以直接读取 `tasks` 和 `dispatch` 函数。*
+
+下面将介绍如何结合使用 reducer 和 context：
+
+1. 创建 context。
+2. 将 state 和 dispatch 放入 context。
+3. 在组件树的任何地方 使用 context。
+
+
