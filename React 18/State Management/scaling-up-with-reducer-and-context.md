@@ -222,4 +222,26 @@ Reducer 有助于保持事件处理程序的简短明了。但随着应用规模
 2. 将 state 和 dispatch 放入 context。
 3. 在组件树的任何地方 使用 context。
 
+### 第一步: 创建 context 
+`useReducer` 返回当前的 `tasks` 和 `dispatch` 函数来让你更新它们：
 
+```jsx
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+为了将它们从组件树往下传，你将 创建 两个不同的 context：
+
++ TasksContext 提供当前的 tasks 列表。
++ TasksDispatchContext 提供了一个函数可以让组件分发动作。
+
+将它们从单独的文件导出，以便以后可以从其他文件导入它们：
+
+#### TasksContext.js
+```jsx
+import { createContext } from 'react';
+
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+在这里，你把 `null` 作为默认值传递给两个 context。实际值是由 `TaskApp` 组件提供的。
