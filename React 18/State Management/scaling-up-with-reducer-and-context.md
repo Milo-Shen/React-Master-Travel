@@ -395,6 +395,7 @@ export default function AddTask() {
         text: text,
       });
     }}>Add</button>
+  )
     // ...
 }
 ```
@@ -886,3 +887,14 @@ const initialTasks = [
 像 `useTasks` 和 `useTasksDispatch` 这样的函数被称为 自定义 Hook。 如果你的函数名以 `use` 开头，它就被认为是一个自定义 Hook。这让你可以使用其他 Hook，比如 `useContext`。
 
 随着应用的增长，你可能会有许多这样的 context 和 reducer 的组合。这是一种强大的拓展应用并 提升状态 的方式，让你在组件树深处访问数据时无需进行太多工作。
+
+## 摘要
++ 你可以将 reducer 与 context 相结合，让任何组件读取和更新它的状态。
++ 为子组件提供 state 和 dispatch 函数：
+  1. 创建两个 context (一个用于 state, 一个用于 dispatch 函数)。
+  2. 让组件的 context 使用 reducer。
+  3. 使用组件中需要读取的 context。
++ 你可以通过将所有传递信息的代码移动到单个文件中来进一步整理组件。
+  1. 你可以导出一个像 `TasksProvider` 可以提供 context 的组件。
+  2. 你也可以导出像 `useTasks` 和 `useTasksDispatch` 这样的自定义 Hook。
+你可以在你的应用程序中大量使用 context 和 reducer 的组合。
