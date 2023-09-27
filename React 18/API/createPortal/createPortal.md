@@ -23,3 +23,19 @@ createPortal(children, domNode, key?)
 ```
 
 调用 `createPortal` 创建 `portal`，并传入 JSX 与实际渲染的目标 DOM 节点：
+
+```jsx
+import { createPortal } from 'react-dom';
+
+// ...
+
+<div>
+  <p>这个子节点被放置在父节点 div 中。</p>
+  {createPortal(
+    <p>这个子节点被放置在 document body 中。</p>,
+    document.body
+  )}
+</div>
+```
+
+portal 只改变 DOM 节点的所处位置。在其他方面，渲染至 portal 的 JSX 的行为表现与作为 React 组件的子节点一致。该子节点可以访问由父节点树提供的 context 对象、事件将从子节点依循 React 树冒泡到父节点。
