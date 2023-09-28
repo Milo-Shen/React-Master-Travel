@@ -39,3 +39,10 @@ import { createPortal } from 'react-dom';
 ```
 
 portal 只改变 DOM 节点的所处位置。在其他方面，渲染至 portal 的 JSX 的行为表现与作为 React 组件的子节点一致。该子节点可以访问由父节点树提供的 context 对象、事件将从子节点依循 React 树冒泡到父节点。
+
+### 参数 
++ `children`：React 可以渲染的任何内容，如 JSX 片段（`<div />` 或 `<SomeComponent />` 等等）、Fragment（`<>...</>`）、字符串或数字，以及这些内容构成的数组。
++ `domNode`：某个已经存在的 DOM 节点，例如由 `document.getElementById()` 返回的节点。在更新过程中传递不同的 DOM 节点将导致 portal 内容被重建。
++ 可选参数 `key`：用作 portal key 的独特字符串或数字。
+
+
