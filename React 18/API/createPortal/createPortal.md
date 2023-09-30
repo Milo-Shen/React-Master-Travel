@@ -51,3 +51,45 @@ portal 只改变 DOM 节点的所处位置。在其他方面，渲染至 portal 
 ### 警告 
 portal 中的事件传播遵循 React 树而不是 DOM 树。例如点击 `<div onClick>` 内部的 portal，将触发 `onClick` 处理程序。如果这会导致意外的问题，*请在 portal 内部停止事件传播，或将 portal 移动到 React 树中的上层。*
 
+## 用法 
+### 渲染到 DOM 的不同部分 
+portal 允许组件将它们的某些子元素渲染到 DOM 中的不同位置。这使得组件的一部分可以“逃脱”它所在的容器。例如组件可以在页面其余部分上方或外部显示模态对话框和提示框。
+
+调用 `createPortal` 并传入 JSX 与  应该放置的 DOM 节点 作为参数，然后渲染返回值以创建 portal：
+
+```jsx
+import { createPortal } from 'react-dom';
+
+function MyComponent() {
+  return (
+    <div style={{ border: '2px solid black' }}>
+      <p>这个子节点被放置在父节点 div 中。</p>
+      {createPortal(
+        <p>这个子节点被放置在 document body 中。</p>,
+        document.body
+      )}
+    </div>
+  );
+}
+```
+
+React 将 传递的 JSX 对应的 DOM 节点放入 提供的 DOM 节点 中。
+
+如果没有 portal，第二个 `<p>` 将放置在父级 `<div>` 中，但 portal 会将其“传送”到 `document.body` 中：
+
+请注意，第二个段落在视觉上出现在带有边框的父级 `<div>` 之外。如果你使用开发者工具检查 DOM 结构，会发现第二个 `<p>` 直接放置在 `<body>` 中：
+
+```html
+<body>
+  <div id="root">
+    ...
+      <div style="border: 2px solid black">
+        <p>这个子节点被放置在父节点 div 中。</p>
+      </div>
+    ...
+  </div>
+  <p>这个子节点被放置在 document body 中。</p>
+</body>
+```
+
+portal 只改变 DOM 节点的所处位置。在其他方面，portal 中的 JSX 将作为实际渲染它的 React 组件的子节点。该子节点可以访问由父节点树提供的 `context` 对象、事件将仍然从子节点冒泡到父节点树。
