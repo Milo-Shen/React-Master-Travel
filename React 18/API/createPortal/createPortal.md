@@ -93,3 +93,87 @@ React 将 传递的 JSX 对应的 DOM 节点放入 提供的 DOM 节点 中。
 ```
 
 portal 只改变 DOM 节点的所处位置。在其他方面，portal 中的 JSX 将作为实际渲染它的 React 组件的子节点。该子节点可以访问由父节点树提供的 `context` 对象、事件将仍然从子节点冒泡到父节点树。
+
+### 使用 portal 渲染模态对话框 
+你可以使用 portal 创建一个浮动在页面其余部分之上的模态对话框，即使呼出对话框的组件位于带有 `overflow: hidden` 或其他干扰对话框样式的容器中。
+
+在此示例中，这两个容器具有破坏模态对话框的样式，但是渲染到 portal 中的容器不受影响，因为在 DOM 中，模态对话框不包含在父 JSX 元素内部。
+
+#### App.js
+```jsx
+import NoPortalExample from './NoPortalExample';
+import PortalExample from './PortalExample';
+
+export default function App() {
+  return (
+    <>
+      <div className="clipping-container">
+        <NoPortalExample  />
+      </div>
+      <div className="clipping-container">
+        <PortalExample />
+      </div>
+    </>
+  );
+}
+```
+
+#### NoPortalExample.js
+```jsx
+import { useState } from 'react';
+import ModalContent from './ModalContent.js';
+
+export default function NoPortalExample() {
+  const [showModal, setShowModal] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShowModal(true)}>
+        不使用 portal 展示模态（modal）
+      </button>
+      {showModal && (
+        <ModalContent onClose={() => setShowModal(false)} />
+      )}
+    </>
+  );
+}
+```
+
+#### PortalExample.js
+```jsx
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import ModalContent from './ModalContent.js';
+
+export default function PortalExample() {
+  const [showModal, setShowModal] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShowModal(true)}>
+        使用 portal 展示模态（motal）
+      </button>
+      {showModal && createPortal(
+        <ModalContent onClose={() => setShowModal(false)} />,
+        document.body
+      )}
+    </>
+  );
+}
+```
+
+#### ModalContent.js
+```jsx
+export default function ModalContent({ onClose }) {
+  return (
+    <div className="modal">
+      <div>这是一个模态对话框</div>
+      <button onClick={onClose}>关闭</button>
+    </div>
+  );
+}
+```
+
+#### 陷阱
+使用 portal 时，确保应用程序的无障碍性非常重要。例如，你可能需要管理键盘焦点，以便用户可以自然进出 portal。
+
+创建模态对话框时，请遵循 WAI-ARIA 模态实践指南。如果你使用了社区包，请确保它具有无障碍性，并遵循这些指南。
+
