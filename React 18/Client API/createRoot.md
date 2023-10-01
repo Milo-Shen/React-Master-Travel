@@ -83,3 +83,226 @@ React 将会在 根节点 中显示 `<App />` 组件，并且控制组件中的 
 + 调用 `root.unmout` 将卸载根节点内的所有组件，该根节点上的 React 将被剥离，即所有事件处理程序以及组件树上的状态将被移除。
 + 一旦调用 `root.unmout`，就不能在该根节点上调用 `root.render`。在一个已经卸载的根节点上尝试调用 `root.render` 将会抛出异常错误信息“无法更新一个未挂载的根节点（`Cannot update an unmouted root`）”。不过，你可以在卸载一个根节点后又重新创建它。
 
+## 用法
+### 渲染一个完全由 React 构建的应用 
+
+如果应用程序是完全由 React 构建的，那么请为整个应用程序创建全局唯一的一个根节点。
+
+```jsx
+import { createRoot } from 'react-dom/client';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+通常情况下，在项目启动阶段，你只需要运行下面的代码。它将会：
+
+1. 获取 HTML 中定义的DOM 节点。
+2. 在该 DOM 节点中显示 React 组件。
+
+```jsx
+import { createRoot } from 'react-dom/client';
+import App from './App.js';
+import './styles.css';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+*如果你的应用程序完全由 React 构建，你仅应该创建全局唯一的一个根节点，并只调用一次 root.render。*
+
+从这时起，React 将会控制整个应用程序的 DOM。如果要添加更多组件，可以将它们嵌套进 App 组件中。如果你需要更新视图，每一个组件都可以通过使用 state 做到这一点。如果你需要额外显示一些在这个 DOM 节点之外的内容，比如一个弹窗或者提示框，那么可以 使用 portal 进行渲染。
+
+#### 注意
+当 HTML 为空时，用户将会看一个空白的页面，直到应用程序中的 JavaScript 代码加载并运行：
+
+```jsx
+<div id="root"></div>
+```
+
+这个过程太慢了！要解决这个问题，可以在 服务端或者应用构建期间 通过组件生成一些初始 HTML。这样一来，在 JavaScript 加载之前，用户就能看到一些文字、图片，也能点击链接。我们推荐 使用框架，通过框架开箱即用的能力轻易地完成这个优化。根据框架运行的时机，分为 服务端渲染（SSR） 和 静态站点生成（SSG）。
+
+#### 陷阱
+使用了服务端渲染或者静态站点生成的应用程序，必须调用 hydrateRoot 而不是 createRoot。调用后，React 将会 hydrate HTML 中的 DOM 节点，而不是销毁后重新创建它们。
+
+### 渲染一个部分由 React 构建的应用 
+如果页面 不完全是 React 构建的，可以多次调用 `createRoot` 为每一个由 React 管理的顶级视图片段，即一段 DOM 中的顶级节点，创建一个根节点。可以在每一个根节点中调用 `root.render` 来显示不同的内容。
+
+这样依赖，两个不同的 React 组件分别在同一个文件 `index.html` 内定义的两个 DOM 节点中被渲染：
+
+#### index.html
+```html
+<!DOCTYPE html>
+<html>
+  <head><title>My app</title></head>
+  <body>
+    <nav id="navigation"></nav>
+    <main>
+      <p>这一段不会被 React 渲染（可以打开 index.html 验证这一点）。</p>
+      <section id="comments"></section>
+    </main>
+  </body>
+</html>
+```
+
+#### index.js
+```jsx
+import './styles.css';
+import { createRoot } from 'react-dom/client';
+import { Comments, Navigation } from './Components.js';
+
+const navDomNode = document.getElementById('navigation');
+const navRoot = createRoot(navDomNode); 
+navRoot.render(<Navigation />);
+
+const commentDomNode = document.getElementById('comments');
+const commentRoot = createRoot(commentDomNode); 
+commentRoot.render(<Comments />);
+```
+
+#### Components.js
+```jsx
+export function Navigation() {
+  return (
+    <ul>
+      <NavLink href="/">Home</NavLink>
+      <NavLink href="/about">About</NavLink>
+    </ul>
+  );
+}
+
+function NavLink({ href, children }) {
+  return (
+    <li>
+      <a href={href}>{children}</a>
+    </li>
+  );
+}
+
+export function Comments() {
+  return (
+    <>
+      <h2>Comments</h2>
+      <Comment text="你好!" author="Sophie" />
+      <Comment text="最近怎么样?" author="Sunil" />
+    </>
+  );
+}
+
+function Comment({ text, author }) {
+  return (
+    <p>{text} — <i>{author}</i></p>
+  );
+}
+```
+
+也可以通过 `document.createElement()` 创建一个新的 DOM 节点然后手动将其加入页面文档之中。
+
+```jsx
+const domNode = document.createElement('div');
+const root = createRoot(domNode); 
+root.render(<Comment />);
+document.body.appendChild(domNode); // 你可以把它加入到页面文档的任何位置
+```
+
+调用 `root.unmount` 将从 DOM 节点移除这个 React 树并清除它使用的资源。
+
+```jsx
+root.unmount();
+```
+
+如果 React 组件处于一个由不同框架构建的应用程序之中时，那么这个方法将会非常有用。
+
+### 更新一个根组件 
+可以在同一个根节点上多次调用 `render`。只要当前的组件树结构与之前渲染的结果是一致的，React 将会 保存 state。仔细思考一下，为什么能在输入框中正常输入？正如下方的示例，在每一秒中内多次重复调用 `render` 后发生的更新，是非破坏性的：
+
+```jsx
+import { createRoot } from 'react-dom/client';
+import './styles.css';
+import App from './App.js';
+
+const root = createRoot(document.getElementById('root'));
+
+let i = 0;
+setInterval(() => {
+  root.render(<App counter={i} />);
+  i++;
+}, 1000);
+```
+
+多次调用 `render` 是一个不常见的事情。通常情况下，你的组件将通过 更新 state 达到同样的效果。
+
+## 错误排查
+### 我已经创建了一个根节点，但是页面没有显示任何内容 
+
+确保你没有忘记在根节点上 渲染 你的应用程序：
+
+```jsx
+import { createRoot } from 'react-dom/client';
+import App from './App.js';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+在你进行渲染之前，页面不会显示任何内容。
+
+### 我得到了一个异常报错信息：“目标容器不是一个 DOM 元素（Target container is not a DOM element）” 
+
+这个异常错误即字面意思，你传递给 `createRoot` 的内容不是一个 DOM 元素。
+
+如果你不确定发生了什么，试着在控制台打印它：
+
+```jsx
+const domNode = document.getElementById('root');
+console.log(domNode); // ？？？
+const root = createRoot(domNode);
+root.render(<App />);
+```
+
+举个例子，如果 `domNode` 是 `null`，代表着 `getElementById` 返回了 `null`。这意味着你在调用这个方法的时候，页面文档内并不存在指定的 `id` 对应的元素，于是就出现了这个问题。这里有一些可能的原因：
+
+1. 你使用的 `id` 可能和 HTML 文件中的 `id` 不同。请检查一下你的拼写是否正确！
+2. 打包构建产物的 HTML 文件中的 `<script>` 标签，不能感知到在它执行 *之后* 才出现的 DOM 节点。
+
+触发这个异常报错的另一个常见方式是，将 `createRoot(domNode)` 错写成 `createRoot(<App />)`。
+
+### 我得到了一个异常报错信息：“函数不是合法的 React 子项（Functions are not valid as a React child）” 
+这个错误意味着，你传递给 `root.render` 的内容不是一个 React 组件。
+
+这可能发生在你使用 `Component` 而不是 `<Component />` 作为参数对 `root.render` 进行调用时：
+
+```jsx
+// 🚩 错误方式：App 是一个函数，不是一个组件。
+root.render(App);
+
+// ✅ 正确方式：<App /> 是一个组件。
+root.render(<App />);
+```
+
+或者你向 `root.render` 传递了一个函数本身，而不是其返回值：
+
+```jsx
+// 🚩 错误方式：createApp 是一个函数，不是一个组件。
+root.render(createApp);
+
+// ✅ 正确方式：使用 createApp 执行后返回的组件。
+root.render(createApp());
+```
+
+### 我的服务端渲染的 HTML 在更新时会全部重新创建 
+如果你的应用程序是服务端渲染的，并且包含了由 React 生成的初始 HTML，你可能会注意到，在创建一个根节点后调用 `root.render` 时会删除所有初始 HTML，然后重新生成所有 DOM 节点。这可能会让你的应用变得比客户端渲染更慢，并且在用户输入失去焦点和滑动滚动条时丢失用户输入的内容。
+
+服务端渲染的应用程序必须使用 `hydrateRoot` 替代 `createRoot`：
+
+```jsx
+import { hydrateRoot } from 'react-dom/client';
+import App from './App.js';
+
+hydrateRoot(
+  document.getElementById('root'),
+  <App />
+);
+```
+
+请注意，服务端渲染的 API 是不同的。特别注意，在通常情况下，不会再有 `root.render` 调用。
