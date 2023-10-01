@@ -239,3 +239,92 @@ function SidebarContent() {
   return <p>这一部分也是被 React 渲染的！</p>;
 }
 ```
+
+### 将 React 组件渲染到非 React DOM 节点 
+你还可以使用 portal 来管理在 React 之外管理的 DOM 节点的内容。假设你正在集成非 React 地图小部件，并且想要在弹出窗口中渲染 React 内容，那么可以声明一个 `popupContainer` state 变量来存储要渲染到的目标 DOM 节点：
+
+```jsx
+const [popupContainer, setPopupContainer] = useState(null);
+```
+
+```jsx
+useEffect(() => {
+  if (mapRef.current === null) {
+    const map = createMapWidget(containerRef.current);
+    mapRef.current = map;
+    const popupDiv = addPopupToMapWidget(map);
+    setPopupContainer(popupDiv);
+  }
+}, []);
+```
+
+这样，一旦 `popupContainer` 可用，就可以使用 `createPortal` 将 React 内容渲染到其中：
+
+```jsx
+return (
+  <div style={{ width: 250, height: 250 }} ref={containerRef}>
+    {popupContainer !== null && createPortal(
+      <p>来自 React 的你，你好！</p>,
+      popupContainer
+    )}
+  </div>
+);
+```
+
+以下是一个完整的示例，你可以尝试一下：
+
+#### App.js
+```jsx
+import { useRef, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { createMapWidget, addPopupToMapWidget } from './map-widget.js';
+
+export default function Map() {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const [popupContainer, setPopupContainer] = useState(null);
+
+  useEffect(() => {
+    if (mapRef.current === null) {
+      const map = createMapWidget(containerRef.current);
+      mapRef.current = map;
+      const popupDiv = addPopupToMapWidget(map);
+      setPopupContainer(popupDiv);
+    }
+  }, []);
+
+  return (
+    <div style={{ width: 250, height: 250 }} ref={containerRef}>
+      {popupContainer !== null && createPortal(
+        <p>来自 React 的你，你好！</p>,
+        popupContainer
+      )}
+    </div>
+  );
+}
+```
+
+#### map-widget.js
+```jsx
+import 'leaflet/dist/leaflet.css';
+import * as L from 'leaflet';
+
+export function createMapWidget(containerDomNode) {
+  const map = L.map(containerDomNode);
+  map.setView([0, 0], 0);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  return map;
+}
+
+export function addPopupToMapWidget(map) {
+  const popupDiv = document.createElement('div');
+  L.popup()
+    .setLatLng([0, 0])
+    .setContent(popupDiv)
+    .openOn(map);
+  return popupDiv;
+}
+```
