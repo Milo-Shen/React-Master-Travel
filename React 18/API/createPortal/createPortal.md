@@ -177,3 +177,65 @@ export default function ModalContent({ onClose }) {
 
 创建模态对话框时，请遵循 WAI-ARIA 模态实践指南。如果你使用了社区包，请确保它具有无障碍性，并遵循这些指南。
 
+### 将 React 组件渲染到非 React 服务器标记中 
+如果静态或服务端渲染的网站中只有某一部分使用 React，则 portal 可能非常有用。如果你的页面使用 Rails 等服务端框架构建，则可以在静态区域（例如侧边栏）中创建交互区域。与拥有 多个独立的 React 根 相比，portal 将应用程序视为一个单一的 React 树，即使它的部分在 DOM 的不同部分渲染，也可以共享状态。
+
+#### index.html
+```html
+<!DOCTYPE html>
+<html>
+  <head><title>我的应用程序</title></head>
+  <body>
+    <h1>我的网站一部分使用了 React，另外一部分没有使用</h1>
+    <div class="parent">
+      <div class="sidebar">
+        这是一个非 React 服务器标记
+        <div id="sidebar-content"></div>
+      </div>
+      <div id="root"></div>
+    </div>
+  </body>
+</html>
+```
+
+#### index.js
+```jsx
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App.js';
+import './styles.css';
+
+const root = createRoot(document.getElementById('root'));
+root.render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+```
+
+#### App.js
+```jsx
+import { createPortal } from 'react-dom';
+
+const sidebarContentEl = document.getElementById('sidebar-content');
+
+export default function App() {
+  return (
+    <>
+      <MainContent />
+      {createPortal(
+        <SidebarContent />,
+        sidebarContentEl
+      )}
+    </>
+  );
+}
+
+function MainContent() {
+  return <p>这一部分是被 React 渲染的。</p>;
+}
+
+function SidebarContent() {
+  return <p>这一部分也是被 React 渲染的！</p>;
+}
+```
