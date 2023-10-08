@@ -161,3 +161,34 @@ function Counter() {
 + 在服务器和客户端渲染不同的数据。
 
 React 可以从一些 hydrate 错误中恢复，但 *你必须像处理其他 bug 一样修复它们*。在最好的情况下，它们会导致应用程序加载变慢；在最坏的情况下，事件处理程序可能会附加到错误的元素上。
+
+## hydrate 整个文档 
+完全使用 React 构建的应用程序可以将整个文档作为 JSX 渲染，包括 `<html>` 标签：
+
+```jsx
+function App() {
+  return (
+    <html>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="/styles.css"></link>
+        <title>My app</title>
+      </head>
+      <body>
+        <Router />
+      </body>
+    </html>
+  );
+}
+```
+
+要对整个文档进行 hydrate 处理，将全局的 `document` 作为 `hydrateRoot` 的第一个参数传递：
+
+```jsx
+import { hydrateRoot } from 'react-dom/client';
+import App from './App.js';
+
+hydrateRoot(document, <App />);
+```
+
