@@ -39,4 +39,5 @@ React 将会连接到内部有 domNode 的 HTML 上，然后接管其中的 `dom
   + *可选* `onRecoverableError`：当 React 自动从错误中恢复时调用的回调函数。
   + *可选* `identifierPrefix`：字符串前缀，用于标识由 `useId` 生成的 ID ，可以避免在同一页面上使用多个 React 根元素时出现冲突。必须与服务端使用的前缀相同。
 
-
+`#### 返回值
+`hydrateRoot 返回一个包含两个方法的对象 `render` 和 `unmount`。
