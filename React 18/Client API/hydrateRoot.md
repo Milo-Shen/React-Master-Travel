@@ -48,4 +48,21 @@ hydrateRoot 返回一个包含两个方法的对象 `render` 和 `unmount`。
 + 你的应用程序可能只有一个 `hydrateRoot()` 函数调用。如果你使用框架，则可能会为你完成此调用。
 + 如果你的应用程序是客户端渲染，并且没有已渲染好的 HTML，则不支持使用 `hydrateRoot()`。请改用 `createRoot()`。
 
-### `root.render(reactNode) `
+### `root.render(reactNode)`
+
+使用 `root.render` 更新一个 `hydrate` 根组件中的 React 组件来渲染浏览器端 DOM 元素。
+
+```jsx
+root.render(<App />);
+```
+
+React 将会在 hydrate `root` 中更新 `<App />`。
+
+#### 参数 
+`reactNode`：你想要更新的 “React 节点”。通常这会是一段JSX代码，例如 `<App />`，但你也可以传递一个通过 `createElement()` 创建的 React 元素，一个字符串，一个数字，`null` 值 或者 `undefined` 值。
+
+#### 返回值 
+`root.render` 返回 `undefined` 值。
+
+#### 警告 
+如果你在根节点还没有完成 `hydrate` 的情况下调用了 `root.render`，React 将清除现有的服务端渲染 HTML 内容，并将整个根节点切换到客户端渲染。
