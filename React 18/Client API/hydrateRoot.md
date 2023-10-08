@@ -87,4 +87,66 @@ React 将会在 hydrate `root` 中更新 `<App />`。
 + 调用 `root.unmount` 将卸载树中的所有组件，并“分离” React 与根 DOM 节点之间的连接
 + 一旦你调用 `root.unmount`，就不能再在根节点上调用 `root.render`。在未挂载的根节点上尝试调用 `root.render` 将抛出“不能更新未挂载的根节点”的错误。
 
+## 用法 
+
+### hydrate 服务端渲染的 HTML 
+如果你的应用程序的 HTML 是由 react-dom/server 生成的，你需要在客户端上进行 hydrate。
+
+```jsx
+import { hydrateRoot } from 'react-dom/client';
+
+hydrateRoot(document.getElementById('root'), <App />);
+```
+
+对于你的应用程序来说，这将  hydrate 你的服务端 HTML 来复苏里面的 浏览器 DOM 节点和 React 组件。通常，你只需要在启动时执行一次。如果你使用框架，则可能会自动在幕后执行此操作。
+
+为了进行 hydrate，React 将把你的组件逻辑连接到服务器上生成的初始 HTML 中。hydrate 可以将来自服务器的初始 HTML 快照转换为在浏览器中运行的完全可交互应用。
+
+#### index.html
+```hrml
+<!--
+  在 <div id="root">...</div> 中的 HTML 内容
+  由 react-dom/server 生成
+-->
+<div id="root"><h1>Hello, world!</h1><button>You clicked me <!-- -->0<!-- --> times</button></div>
+```
+
+#### index.js
+```jsx
+import './styles.css';
+import { hydrateRoot } from 'react-dom/client';
+import App from './App.js';
+
+hydrateRoot(
+  document.getElementById('root'),
+  <App />
+);
+```
+
+#### App.js
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  return (
+    <>
+      <h1>Hello, world!</h1>
+      <Counter />
+    </>
+  );
+}
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      You clicked me {count} times
+    </button>
+  );
+}
+```
+
+你不需要再次调用 `hydrateRoot` 或者在其他地方调用它。从现在开始，React 将管理你的应用程序的 DOM。想要更新 UI 请使用 useState 替代。
+
+### 陷阱
 
