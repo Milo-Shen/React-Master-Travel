@@ -66,3 +66,25 @@ React 将会在 hydrate `root` 中更新 `<App />`。
 
 #### 警告 
 如果你在根节点还没有完成 `hydrate` 的情况下调用了 `root.render`，React 将清除现有的服务端渲染 HTML 内容，并将整个根节点切换到客户端渲染。
+
+### `root.unmount()`
+
+调用 `root.unmount` 来销毁 React 根节点内的渲染树。
+
+完全使用 React 构建的应用通常不会有任何调用 `root.unmount` 的情况。
+
+这主要适用于 React 根节点的 DOM 节点（或其任何祖先节点）可能会被其他代码从 DOM 中移除的情况。例如，想象一下一个 `jQuery` 标签面板，它会将非活动标签从 DOM 中移除。如果一个标签被移除，其内部的所有内容（包括其中的 React 根节点）也将从 DOM 中移除。你需要调用 `root.unmount` 来告诉 React “停止”管理已移除根节点的内容。否则，已移除根节点内的组件将无法清理和释放已使用的资源，例如订阅。
+
+调用 `root.unmount` 将卸载根节点中的所有组件，并“分离” React 与根 DOM 节点之间的连接，包括删除树中的任何事件处理程序或状态。
+
+#### 参数 
+`root.unmount` 不接受任何参数。
+
+#### 返回值 
+`render` 返回 `undefined` 值。
+
+#### 警告 
++ 调用 `root.unmount` 将卸载树中的所有组件，并“分离” React 与根 DOM 节点之间的连接
++ 一旦你调用 `root.unmount`，就不能再在根节点上调用 `root.render`。在未挂载的根节点上尝试调用 `root.render` 将抛出“不能更新未挂载的根节点”的错误。
+
+
