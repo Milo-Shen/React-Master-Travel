@@ -39,5 +39,13 @@ React 将会连接到内部有 domNode 的 HTML 上，然后接管其中的 `dom
   + *可选* `onRecoverableError`：当 React 自动从错误中恢复时调用的回调函数。
   + *可选* `identifierPrefix`：字符串前缀，用于标识由 `useId` 生成的 ID ，可以避免在同一页面上使用多个 React 根元素时出现冲突。必须与服务端使用的前缀相同。
 
-`#### 返回值
-`hydrateRoot 返回一个包含两个方法的对象 `render` 和 `unmount`。
+#### 返回值
+hydrateRoot 返回一个包含两个方法的对象 `render` 和 `unmount`。
+
+#### 警告 
++ `hydrateRoot()` 期望渲染内容与服务端渲染的内容完全相同。你应该将不匹配视为错误并进行修复。
++ 在开发模式下，React 会在 `hydrate` 期间发出不匹配警告。在不匹配的情况下，不能保证内容差异会被修补。出于性能原因，这很重要，因为在大多数应用程序中，不匹配很少见，因此验证所有标记将是昂贵而不可行的。
++ 你的应用程序可能只有一个 `hydrateRoot()` 函数调用。如果你使用框架，则可能会为你完成此调用。
++ 如果你的应用程序是客户端渲染，并且没有已渲染好的 HTML，则不支持使用 `hydrateRoot()`。请改用 `createRoot()`。
+
+### `root.render(reactNode) `
