@@ -192,3 +192,28 @@ import App from './App.js';
 hydrateRoot(document, <App />);
 ```
 
+## 抑制不可避免的 hydrate 处理不匹配错误 
+如果一个单独元素属性或文本内容在服务器和客户端之间是不可避免地不同的（例如，时间戳），则可以抑制 hydrate 处理不匹配警告。
+
+要消除对元素的 hydrate 处理警告，请添加 `suppressHydrationWarning={true}`：
+
+### App.js
+```jsx
+export default function App() {
+  return (
+    <h1 suppressHydrationWarning={true}>
+      Current Date: {new Date().toLocaleDateString()}
+    </h1>
+  );
+}
+```
+
+此方法仅适用于当前层级，并且旨在作为一种应急方案。不要滥用它。除非是文本内容，否则 React 不会尝试修补它，因此可能会保持不一致，直到未来的更新来到。
+
+## 处理不同的客户端和服务端内容 
+如果你有意在服务器和客户端上呈现不同的内容，则可以进行两次渲染。在客户端上呈现不同内容的组件可以读取类似于 `isClient` 的 状态变量，你可以在 Effect 中将其设置为 `true`：
+
+这样，初始渲染将呈现与服务器相同的内容，避免不匹配，但是在 hydrate 之后会同步进行额外的渲染。
+
+### 陷阱
+这种方法使得 hydrate 变慢，因为你的组件需要渲染两次。要注意在网络连接较慢的情况下用户的体验。JavaScript 代码的加载时间可能会比初始的 HTML 渲染慢很多，因此在 hydrate 之后立即呈现不同的 UI 对用户来说可能也会感到不适。
