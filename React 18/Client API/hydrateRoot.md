@@ -217,3 +217,27 @@ export default function App() {
 
 ### 陷阱
 这种方法使得 hydrate 变慢，因为你的组件需要渲染两次。要注意在网络连接较慢的情况下用户的体验。JavaScript 代码的加载时间可能会比初始的 HTML 渲染慢很多，因此在 hydrate 之后立即呈现不同的 UI 对用户来说可能也会感到不适。
+
+## 更新 hydrate 根组件 
+在根组件 hydrate 完成之后，你可以调用 `root.render` 来更新根 React 组件。*与 `createRoot` 不同的是，通常你不需要这样做，因为初始内容已经渲染为 HTML。*
+
+如果在 hydrate 之后某个时刻调用了 `root.render`，并且组件树结构与之前渲染的相匹配，那么 React 将 保留重置 state。请注意，你可以在输入框中输入文字，这意味着在此示例中每秒钟重复调用的 render 不会破坏已有的组件状态：
+
+```jsx
+import { hydrateRoot } from 'react-dom/client';
+import './styles.css';
+import App from './App.js';
+
+const root = hydrateRoot(
+  document.getElementById('root'),
+  <App counter={0} />
+);
+
+let i = 0;
+setInterval(() => {
+  root.render(<App counter={i} />);
+  i++;
+}, 1000);
+```
+
+在 hydrate 过的根组件上调用 `root.render` 是不常见的。通常情况下，你可以在组件的内部 更新 state。
